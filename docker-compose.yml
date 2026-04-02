@@ -1,0 +1,21 @@
+services:
+  nostr-relay:
+    build: .
+    container_name: nostr-relay
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - relay-data:/app/data
+    environment:
+      - PORT=8080
+      - HOST=0.0.0.0
+      - DATABASE_PATH=/app/data/relay.db
+      - RELAY_NAME=My Nostr Relay
+      - RELAY_DESCRIPTION=A self-hosted Nostr relay with whitelist support
+      # Set RUST_LOG=debug for verbose logs
+      - RUST_LOG=nostr_relay=info
+
+volumes:
+  relay-data:
+    driver: local
