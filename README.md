@@ -1,6 +1,6 @@
 # Nostr Relay
 
-A self-hosted Nostr relay written in Rust with:
+BEWARE:  A self-hosted Nostr relay vibe coded by an amateur in Rust with:
 
 - **NIP-01** WebSocket relay protocol
 - **NIP-11** relay information document
