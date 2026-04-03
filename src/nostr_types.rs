@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use bech32::{self, Bech32, Hrp};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NostrEvent {
@@ -129,21 +130,26 @@ impl Filter {
 }
 
 pub fn npub_to_hex(npub: &str) -> Result<String> {
-    let (hrp, data, _) = bech32::decode(npub)
+    let (hrp, data) = bech32::decode(npub)
         .map_err(|e| anyhow!("bech32 decode error: {e}"))?;
-    if hrp != "npub" {
+
+    if hrp.as_str() != "npub" {
         return Err(anyhow!("Not an npub (got hrp: {hrp})"));
     }
+
     let bytes = bech32::convert_bits(&data, 5, 8, false)
         .map_err(|e| anyhow!("bit conversion error: {e}"))?;
+
     Ok(hex::encode(bytes))
 }
 
 pub fn hex_to_npub(hex_key: &str) -> Result<String> {
     let bytes = hex::decode(hex_key)
         .map_err(|e| anyhow!("hex decode error: {e}"))?;
+
     let data = bech32::convert_bits(&bytes, 8, 5, true)
         .map_err(|e| anyhow!("bit conversion error: {e}"))?;
-    bech32::encode("npub", data, bech32::Variant::Bech32)
+        //New bech32 0.11 API 
+    let hrp = bech32::Hrp::parse("npub").map_err(|e| any bech32::encode::<bech32::Bech32>(hrp, &data)
         .map_err(|e| anyhow!("bech32 encode error: {e}"))
 }
