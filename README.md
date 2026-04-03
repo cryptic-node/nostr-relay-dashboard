@@ -1,4 +1,4 @@
-# Nostr Relay
+# Nostr Relay Dashboard
 
 BEWARE:  A self-hosted Nostr relay vibe coded by an amateur in Rust with:
 
