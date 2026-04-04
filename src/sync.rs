@@ -40,7 +40,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
         }
     }
 
-    // Connect (this returns () in current nostr-sdk, not Result)
+    // Connect to relays
     client.connect().await;
 
     let mut total_inserted = 0usize;
@@ -70,7 +70,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
             Ok(events) => {
                 let mut inserted_count = 0;
 
-                // events is Vec<Event> in recent nostr-sdk, not a struct with .events field
+                // events is Vec<Event> — iterate directly (no &events and no .events field)
                 for event in &events {
                     let inserted = sqlx::query(
                         "INSERT OR IGNORE INTO events 
