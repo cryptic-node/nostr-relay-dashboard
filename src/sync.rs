@@ -40,9 +40,8 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
         }
     }
 
-    if let Err(e) = client.connect().await {
-        return Err(format!("Failed to connect to relays: {}", e));
-    }
+    // Connect (this returns () in current nostr-sdk, not Result)
+    client.connect().await;
 
     let mut total_inserted = 0usize;
 
@@ -71,7 +70,8 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
             Ok(events) => {
                 let mut inserted_count = 0;
 
-                for event in &events.events {
+                // events is Vec<Event> in recent nostr-sdk, not a struct with .events field
+                for event in &events {
                     let inserted = sqlx::query(
                         "INSERT OR IGNORE INTO events 
                          (id, pubkey, kind, content, created_at, tags, sig)
@@ -83,7 +83,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
                     .bind(&event.content)
                     .bind(event.created_at.as_secs() as i64)
                     .bind(serde_json::to_string(&event.tags).unwrap_or_default())
-                    .bind(event.sig.to_hex())           // better to use .to_hex() for consistency
+                    .bind(event.sig.to_hex())
                     .execute(&pool)
                     .await
                     .is_ok();
@@ -95,7 +95,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
                 }
 
                 println!("✅ Fetched {} events for npub {} → {} new inserted", 
-                         events.events.len(), npub_str, inserted_count);
+                         events.len(), npub_str, inserted_count);
             }
             Err(e) => {
                 println!("⚠️ Fetch error for {}: {}", npub_str, e);
