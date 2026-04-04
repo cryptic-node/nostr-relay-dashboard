@@ -120,4 +120,88 @@ async fn delete_relay(Path(id): Path<i64>, State(pool): State<SqlitePool>) -> Js
     Json(ApiResponse { success: true, message: "Relay deleted".to_string() })
 }
 
-async fn get_npubs(State(pool): State<SqlitePool>) -> Json<Vec<
+async fn get_npubs(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value>> {
+    let npubs = sqlx::query("SELECT id, npub, label, last_synced, created_at FROM monitored_npubs")
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
+    let json_npubs: Vec<serde_json::Value> = npubs.into_iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<i64, _>("id"),
+            "npub": row.get::<String, _>("npub"),
+            "label": row.get::<Option<String>, _>("label"),
+            "last_synced": row.get::<Option<String>, _>("last_synced").unwrap_or_default(),
+            "created_at": row.get::<Option<String>, _>("created_at").unwrap_or_default(),
+        })
+    }).collect();
+
+    Json(json_npubs)
+}
+
+async fn add_npub(State(pool): State<SqlitePool>, Json(req): Json<AddNpubRequest>) -> Json<ApiResponse> {
+    let result = sqlx::query("INSERT INTO monitored_npubs (npub, label) VALUES (?, ?)")
+        .bind(&req.npub)
+        .bind(&req.label)
+        .execute(&pool)
+        .await;
+
+    match result {
+        Ok(_) => Json(ApiResponse { success: true, message: "Npub added successfully".to_string() }),
+        Err(e) => Json(ApiResponse { success: false, message: format!("Failed: {}", e) }),
+    }
+}
+
+async fn delete_npub(Path(id): Path<i64>, State(pool): State<SqlitePool>) -> Json<ApiResponse> {
+    let _ = sqlx::query("DELETE FROM monitored_npubs WHERE id = ?").bind(id).execute(&pool).await;
+    Json(ApiResponse { success: true, message: "Npub deleted".to_string() })
+}
+
+async fn trigger_sync(State(pool): State<SqlitePool>) -> Json<ApiResponse> {
+    match sync::sync_npubs(pool.clone()).await {
+        Ok(msg) => Json(ApiResponse { success: true, message: msg }),
+        Err(e) => Json(ApiResponse { success: false, message: e }),
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt::init();
+
+    let pool = SqlitePool::connect("sqlite:nostr_relay.db?mode=rwc")
+        .await
+        .expect("Failed to connect to SQLite");
+
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .expect("Failed to run database migrations");
+
+    // Seed preloaded relays
+    let _ = sqlx::query(
+        "INSERT OR IGNORE INTO upstream_relays (url, name, enabled, preloaded) VALUES 
+         ('wss://relay.damus.io', 'Damus', 1, 1),
+         ('wss://nos.lol', 'nos.lol', 1, 1),
+         ('wss://nostr.wine', 'Nostr Wine', 1, 1),
+         ('wss://relay.snort.social', 'Snort', 1, 1),
+         ('wss://nostr.mutinywallet.com', 'Mutiny', 1, 1)"
+    ).execute(&pool).await;
+
+    println!("✅ Database ready (preloaded relays seeded)");
+
+    let app = Router::new()
+        .route("/api/relays", get(get_relays).post(add_relay))
+        .route("/api/relays/:id", delete(delete_relay))
+        .route("/api/npubs", get(get_npubs).post(add_npub))
+        .route("/api/npubs/:id", delete(delete_npub))
+        .route("/api/sync", post(trigger_sync))
+        .route("/api/events", get(get_events))
+        .nest_service("/", ServeDir::new("public"))
+        .with_state(pool);
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    println!("🚀 Dashboard running on http://0.0.0.0:8080");
+
+    let listener = TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app.into_make_service()).await.unwrap();
+}
