@@ -4,7 +4,7 @@
 
 ---
 
-### ✨ v1 – Mission Accomplished
+### ✨ v1 – Mission (Nearly) Accomplished
 
 **Created by [cryptic-node](https://github.com/cryptic-node)**
 
@@ -20,6 +20,13 @@
 - One-click "Sync Now" — pulls events and stores them locally (deduplicated)
 - Live dashboard with real-time recent events pane
 - SQLite backend — zero external services
+
+### Goals for Next Iteration
+- Add detail to relays connected: number of events synced by relay, connection uptime, server details
+- Add detail to npubs stored: number of events synced by npub, number of relays found with events from npub, most recent sync date and time
+- Fix Recent Events display, currently still blank but displays npub label at the top
+- Add detail to sync progress and finished messages
+- Add option to create backup file or restore from backup file.
 
 ### Quick Start
 ```bash
