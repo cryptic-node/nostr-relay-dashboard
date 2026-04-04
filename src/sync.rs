@@ -70,7 +70,6 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
                 let num_fetched = events.len();
                 let mut inserted_count = 0;
 
-                // Fixed: iterate by value (Events implements IntoIterator directly)
                 for event in events {
                     let inserted = sqlx::query(
                         "INSERT OR IGNORE INTO events 
@@ -83,7 +82,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
                     .bind(&event.content)
                     .bind(event.created_at.as_secs() as i64)
                     .bind(serde_json::to_string(&event.tags).unwrap_or_default())
-                    .bind(event.sig.to_hex())
+                    .bind(event.sig.to_string())           // ← fixed: Signature uses .to_string() in your version
                     .execute(&pool)
                     .await
                     .is_ok();
