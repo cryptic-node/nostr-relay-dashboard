@@ -3,11 +3,7 @@
 **Your personal Nostr backup & aggregator** — clean, fast, and built in Rust.
 
 ---
-Author: cryptic-node (& Grok)
-NOSTR nPub: npub1axr49qkexxmcm0g2tac3uawzmk59gaupsgy5fw5sfuscumq79h9qjh47gn
-Lightning Address: orchidcheetah29@primal.net
-All donations go to paying for Grok and Digital Ocean Basic Droplet to continue working on it.
----
+
 
 ### ✨ v1 – Mission (Nearly) Accomplished
 
@@ -67,3 +63,15 @@ Your local relay will become a backup/aggregator for the npubs you monitor.
 - Database: `nostr_relay.db` (SQLite)
 
 Built with Rust, Axum, sqlx, and nostr-sdk.
+
+Author: cryptic-node (& Grok)
+
+
+NOSTR nPub: npub1axr49qkexxmcm0g2tac3uawzmk59gaupsgy5fw5sfuscumq79h9qjh47gn
+
+
+Lightning Address: orchidcheetah29@primal.net
+
+
+All donations go to paying for Grok and Digital Ocean Basic Droplet to continue working on it.
+
