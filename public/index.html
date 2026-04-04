@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nostr Relay Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: system_ui, sans-serif; }
+        .card { transition: all 0.2s; }
+        .card:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen">
+    <div class="max-w-5xl mx-auto p-6">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-10">
+            <div>
+                <h1 class="text-4xl font-bold tracking-tight">My Nostr Relay</h1>
+                <p class="text-zinc-400 mt-1">Personal backup & aggregator • Powered by Rust</p>
+            </div>
+            <div class="text-right">
+                <div id="status" class="text-sm text-emerald-400 font-medium">● Ready</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- Relays Section -->
+            <div class="bg-zinc-900 rounded-2xl p-6 border border-zinc-800">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-semibold">Upstream Relays</h2>
+                    <span id="relay-count" class="text-xs bg-zinc-800 px-3 py-1 rounded-full">0 relays</span>
+                </div>
+                
+                <div id="relays-list" class="space-y-3 mb-6 max-h-80 overflow-auto"></div>
+                
+                <div class="flex gap-3">
+                    <input id="relay-url" 
+                           type="text" 
+                           placeholder="wss://new-relay.example.com"
+                           class="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500">
+                    <input id="relay-name" 
+                           type="text" 
+                           placeholder="Name (optional)"
+                           class="w-48 bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500">
+                    <button onclick="addRelay()" 
+                            class="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-medium">
+                        Add
+                    </button>
+                </div>
+            </div>
+
+            <!-- Npubs Section -->
+            <div class="bg-zinc-900 rounded-2xl p-6 border border-zinc-800">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-semibold">Monitored Npubs</h2>
+                    <span id="npub-count" class="text-xs bg-zinc-800 px-3 py-1 rounded-full">0 npubs</span>
+                </div>
+                
+                <div id="npubs-list" class="space-y-3 mb-6 max-h-80 overflow-auto"></div>
+                
+                <div class="flex gap-3">
+                    <input id="npub-input" 
+                           type="text" 
+                           placeholder="npub1..."
+                           class="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-green-500">
+                    <input id="npub-label" 
+                           type="text" 
+                           placeholder="Label (optional)"
+                           class="w-48 bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-green-500">
+                    <button onclick="addNpub()" 
+                            class="bg-green-600 hover:bg-green-500 px-6 py-3 rounded-xl font-medium">
+                        Add
+                    </button>
+                </div>
+                
+                <button onclick="triggerSync()" 
+                        class="mt-6 w-full bg-purple-600 hover:bg-purple-500 py-4 rounded-2xl font-semibold text-lg flex items-center justify-center gap-3">
+                    <span>🔄</span> 
+                    <span>Sync Now — Pull Events from Upstream</span>
+                </button>
+                
+                <div id="sync-status" class="mt-4 text-center text-sm min-h-[1.5em]"></div>
+            </div>
+        </div>
+
+        <!-- Footer info -->
+        <div class="text-center text-zinc-500 text-xs mt-12">
+            Preloaded relays: Damus, nos.lol, Nostr Wine, Snort, Mutiny • 
+            Events are stored locally and deduplicated
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+
+        async function fetchJson(url) {
+            const res = await fetch(url);
+            return res.json();
+        }
+
+        async function postJson(url, body) {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            return res.json();
+        }
+
+        async function loadRelays() {
+            const data = await fetchJson(`${API_BASE}/relays`);
+            const container = document.getElementById('relays-list');
+            container.innerHTML = data.map(r => `
+                <div class="card bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex justify-between items-center">
+                    <div>
+                        <div class="font-mono text-sm text-blue-400 break-all">${r.url}</div>
+                        <div class="text-zinc-400 text-sm">${r.name || 'Unnamed'}</div>
+                    </div>
+                    <div class="text-right">
+                        ${r.preloaded ? '<span class="text-xs bg-amber-900 text-amber-300 px-2 py-0.5 rounded">PRELOADED</span>' : ''}
+                        <div class="text-xs ${r.enabled ? 'text-emerald-400' : 'text-red-400'}">
+                            ${r.enabled ? '● ENABLED' : '○ DISABLED'}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('relay-count').textContent = `${data.length} relays`;
+        }
+
+        async function loadNpubs() {
+            const data = await fetchJson(`${API_BASE}/npubs`);
+            const container = document.getElementById('npubs-list');
+            container.innerHTML = data.map(n => `
+                <div class="card bg-zinc-950 border border-zinc-800 rounded-xl p-4">
+                    <div class="font-mono text-sm break-all text-green-400">${n.npub}</div>
+                    ${n.label ? `<div class="text-zinc-400 text-sm">${n.label}</div>` : ''}
+                    <div class="text-xs text-zinc-500 mt-1">
+                        Last sync: ${n.last_synced ? new Date(n.last_synced).toLocaleString() : 'Never'}
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('npub-count').textContent = `${data.length} npubs`;
+        }
+
+        async function addRelay() {
+            const url = document.getElementById('relay-url').value.trim();
+            const name = document.getElementById('relay-name').value.trim();
+            if (!url) return alert("Please enter a relay URL (wss://...)");
+            
+            const result = await postJson(`${API_BASE}/relays`, { url, name: name || null });
+            alert(result.message);
+            if (result.success) {
+                document.getElementById('relay-url').value = '';
+                document.getElementById('relay-name').value = '';
+                loadRelays();
+            }
+        }
+
+        async function addNpub() {
+            const npub = document.getElementById('npub-input').value.trim();
+            const label = document.getElementById('npub-label').value.trim();
+            if (!npub) return alert("Please enter an npub");
+            
+            const result = await postJson(`${API_BASE}/npubs`, { npub, label: label || null });
+            alert(result.message);
+            if (result.success) {
+                document.getElementById('npub-input').value = '';
+                document.getElementById('npub-label').value = '';
+                loadNpubs();
+            }
+        }
+
+        async function triggerSync() {
+            const statusEl = document.getElementById('sync-status');
+            statusEl.textContent = '🔄 Syncing... This may take a minute...';
+            statusEl.className = 'mt-4 text-center text-sm text-amber-400';
+            
+            const result = await postJson(`${API_BASE}/sync`, {});
+            
+            if (result.success) {
+                statusEl.textContent = result.message;
+                statusEl.className = 'mt-4 text-center text-sm text-emerald-400';
+                loadNpubs();   // refresh last_synced timestamps
+            } else {
+                statusEl.textContent = '❌ ' + result.message;
+                statusEl.className = 'mt-4 text-center text-sm text-red-400';
+            }
+        }
+
+        // Initial load
+        window.onload = () => {
+            loadRelays();
+            loadNpubs();
+        };
+    </script>
+</body>
+</html>
