@@ -40,7 +40,6 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
         }
     }
 
-    // Connect to relays
     client.connect().await;
 
     let mut total_inserted = 0usize;
@@ -68,10 +67,11 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
 
         match client.fetch_events(filter, Duration::from_secs(25)).await {
             Ok(events) => {
+                let num_fetched = events.len();
                 let mut inserted_count = 0;
 
-                // events is Vec<Event> — iterate directly (no &events and no .events field)
-                for event in &events {
+                // Fixed: iterate by value (Events implements IntoIterator directly)
+                for event in events {
                     let inserted = sqlx::query(
                         "INSERT OR IGNORE INTO events 
                          (id, pubkey, kind, content, created_at, tags, sig)
@@ -95,7 +95,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
                 }
 
                 println!("✅ Fetched {} events for npub {} → {} new inserted", 
-                         events.len(), npub_str, inserted_count);
+                         num_fetched, npub_str, inserted_count);
             }
             Err(e) => {
                 println!("⚠️ Fetch error for {}: {}", npub_str, e);
