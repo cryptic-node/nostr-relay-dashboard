@@ -177,7 +177,6 @@ async fn main() {
         .await
         .expect("Failed to run database migrations");
 
-    // Seed preloaded relays
     let _ = sqlx::query(
         "INSERT OR IGNORE INTO upstream_relays (url, name, enabled, preloaded) VALUES 
          ('wss://relay.damus.io', 'Damus', 1, 1),
