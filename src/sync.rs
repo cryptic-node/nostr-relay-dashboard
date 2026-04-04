@@ -1,4 +1,4 @@
-use nostr_sdk::{Client, Filter, Kind, ClientBuilder};
+use nostr_sdk::{ClientBuilder, Filter, Kind};
 use nostr::PublicKey;
 use sqlx::SqlitePool;
 use std::str::FromStr;
@@ -29,10 +29,9 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
 
     println!("🔄 Starting sync for {} npubs from {} relays...", npubs.len(), relays.len());
 
-    // Create client WITHOUT signer (we only read, no signing needed)
+    // Create a read-only client
     let client = ClientBuilder::default().build();
 
-    // Add all enabled relays
     for url in &relays {
         if let Err(e) = client.add_relay(url).await {
             println!("⚠️ Failed to add relay {}: {}", url, e);
@@ -60,12 +59,11 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
                 Kind::ContactList,
                 Kind::Repost,
                 Kind::Reaction,
-                Kind::ZapReceipt,   // corrected from Zap
+                Kind::ZapReceipt,
             ])
             .limit(300);
 
-        // Use fetch_events (the correct method in current nostr-sdk)
-        match client.fetch_events(filter, Duration::from_secs(15)).await {
+        match client.fetch_events(filter, Duration::from_secs(20)).await {
             Ok(events) => {
                 for event in events {
                     let inserted = sqlx::query(
@@ -75,11 +73,11 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
                     )
                     .bind(event.id.to_hex())
                     .bind(event.pubkey.to_hex())
-                    .bind(event.kind.as_u64() as i64)
+                    .bind(event.kind.as_u16() as i64)           // fixed
                     .bind(&event.content)
-                    .bind(event.created_at.as_i64())
+                    .bind(event.created_at.as_u64() as i64)     // fixed
                     .bind(serde_json::to_string(&event.tags).unwrap_or_default())
-                    .bind(event.sig.to_hex())
+                    .bind(event.sig.to_string())                // fixed (works reliably)
                     .execute(&pool)
                     .await
                     .is_ok();
@@ -93,7 +91,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
             Err(e) => println!("⚠️ Error fetching for {}: {}", npub_str, e),
         }
 
-        // Update last_synced timestamp
+        // Update last_synced
         let _ = sqlx::query("UPDATE monitored_npubs SET last_synced = CURRENT_TIMESTAMP WHERE npub = ?")
             .bind(&npub_str)
             .execute(&pool)
