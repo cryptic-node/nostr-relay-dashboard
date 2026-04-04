@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tracing_subscriber;
 use std::collections::HashMap;
-use nostr::PublicKey;           // ← added for npub → hex conversion
+use nostr::PublicKey;           // ← already here, good
 
 mod sync;
 
@@ -37,17 +37,18 @@ struct EventPreview {
     created_at: String,
 }
 
-// FIXED: convert npub → hex so it matches what we stored in sync.rs
+// FIXED: use PublicKey::parse (correct method for npub or hex)
 async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): State<SqlitePool>) -> Json<Vec<EventPreview>> {
-    let npub = match params.get("npub") {
+    let npub_str = match params.get("npub") {
         Some(n) => n,
         None => return Json(vec![]),
     };
 
-    let pubkey_hex = match PublicKey::from_str(npub) {
-        Ok(pk) => pk.to_hex(),
-        Err(_) => npub.clone(), // fallback
+    let pubkey = match PublicKey::parse(npub_str) {
+        Ok(pk) => pk,
+        Err(_) => return Json(vec![]), // invalid npub → empty list
     };
+    let pubkey_hex = pubkey.to_hex();
 
     let events = sqlx::query(
         "SELECT id, kind, content, created_at FROM events 
@@ -81,6 +82,10 @@ async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): 
 
     Json(previews)
 }
+
+// ─────────────────────────────────────────────────────────────
+// Everything below this line stays exactly the same as before
+// ─────────────────────────────────────────────────────────────
 
 async fn get_relays(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value>> {
     let relays = sqlx::query(
