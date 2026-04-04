@@ -34,7 +34,7 @@ struct EventPreview {
     kind: u16,
     kind_name: String,
     content: String,
-    created_at: String,        // keep String for the frontend
+    created_at: String,
 }
 
 async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): State<SqlitePool>) -> Json<Vec<EventPreview>> {
@@ -75,7 +75,8 @@ async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): 
                 let c = row.get::<String, _>("content");
                 if c.len() > 120 { c.chars().take(120).collect::<String>() + "…" } else { c }
             },
-            created_at: row.get::<i64, _>("created_at").to_string(),   // ← FIXED
+            created_at: row.get::<Option<i64>, _>("created_at")
+                .map_or("".to_string(), |ts| ts.to_string()),
         }
     }).collect();
 
@@ -95,7 +96,7 @@ async fn get_relays(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Valu
             "name": row.get::<Option<String>, _>("name"),
             "enabled": row.get::<i64, _>("enabled") != 0,
             "preloaded": row.get::<i64, _>("preloaded") != 0,
-            "created_at": row.get::<Option<i64>, _>("created_at").map(|t| t.to_string()),
+            "created_at": row.get::<Option<i64>, _>("created_at").map_or("".to_string(), |v| v.to_string()),
         })
     }).collect();
 
@@ -131,8 +132,8 @@ async fn get_npubs(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value
             "id": row.get::<i64, _>("id"),
             "npub": row.get::<String, _>("npub"),
             "label": row.get::<Option<String>, _>("label"),
-            "last_synced": row.get::<Option<i64>, _>("last_synced").map(|t| t.to_string()),
-            "created_at": row.get::<Option<i64>, _>("created_at").map(|t| t.to_string()),
+            "last_synced": row.get::<Option<i64>, _>("last_synced").map_or("".to_string(), |v| v.to_string()),
+            "created_at": row.get::<Option<i64>, _>("created_at").map_or("".to_string(), |v| v.to_string()),
         })
     }).collect();
 
