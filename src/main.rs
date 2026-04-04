@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tracing_subscriber;
 use std::collections::HashMap;
+use nostr::PublicKey;           // ← added for npub → hex conversion
 
 mod sync;
 
@@ -36,11 +37,16 @@ struct EventPreview {
     created_at: String,
 }
 
-// New: Recent events for a selected npub
+// FIXED: convert npub → hex so it matches what we stored in sync.rs
 async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): State<SqlitePool>) -> Json<Vec<EventPreview>> {
     let npub = match params.get("npub") {
         Some(n) => n,
         None => return Json(vec![]),
+    };
+
+    let pubkey_hex = match PublicKey::from_str(npub) {
+        Ok(pk) => pk.to_hex(),
+        Err(_) => npub.clone(), // fallback
     };
 
     let events = sqlx::query(
@@ -48,7 +54,7 @@ async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): 
          WHERE pubkey = ? 
          ORDER BY created_at DESC LIMIT 10"
     )
-    .bind(npub)
+    .bind(pubkey_hex)
     .fetch_all(&pool)
     .await
     .unwrap_or_default();
@@ -56,12 +62,8 @@ async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): 
     let previews: Vec<EventPreview> = events.into_iter().map(|row| {
         let kind = row.get::<i64, _>("kind") as u16;
         let kind_name = match kind {
-            0 => "Profile",
-            1 => "Text",
-            3 => "Contacts",
-            6 => "Repost",
-            7 => "Reaction",
-            9735 => "Zap",
+            0 => "Profile", 1 => "Text", 3 => "Contacts",
+            6 => "Repost", 7 => "Reaction", 9735 => "Zap",
             _ => "Event",
         }.to_string();
 
@@ -103,13 +105,11 @@ async fn get_relays(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Valu
 }
 
 async fn add_relay(State(pool): State<SqlitePool>, Json(req): Json<AddRelayRequest>) -> Json<ApiResponse> {
-    let result = sqlx::query(
-        "INSERT INTO upstream_relays (url, name) VALUES (?, ?)"
-    )
-    .bind(&req.url)
-    .bind(&req.name)
-    .execute(&pool)
-    .await;
+    let result = sqlx::query("INSERT INTO upstream_relays (url, name) VALUES (?, ?)")
+        .bind(&req.url)
+        .bind(&req.name)
+        .execute(&pool)
+        .await;
 
     match result {
         Ok(_) => Json(ApiResponse { success: true, message: "Relay added successfully".to_string() }),
@@ -139,13 +139,11 @@ async fn get_npubs(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value
 }
 
 async fn add_npub(State(pool): State<SqlitePool>, Json(req): Json<AddNpubRequest>) -> Json<ApiResponse> {
-    let result = sqlx::query(
-        "INSERT INTO monitored_npubs (npub, label) VALUES (?, ?)"
-    )
-    .bind(&req.npub)
-    .bind(&req.label)
-    .execute(&pool)
-    .await;
+    let result = sqlx::query("INSERT INTO monitored_npubs (npub, label) VALUES (?, ?)")
+        .bind(&req.npub)
+        .bind(&req.label)
+        .execute(&pool)
+        .await;
 
     match result {
         Ok(_) => Json(ApiResponse { success: true, message: "Npub added successfully".to_string() }),
@@ -179,7 +177,7 @@ async fn main() {
         .route("/api/relays", get(get_relays).post(add_relay))
         .route("/api/npubs", get(get_npubs).post(add_npub))
         .route("/api/sync", post(trigger_sync))
-        .route("/api/events", get(get_events))           // ← new recent events endpoint
+        .route("/api/events", get(get_events))
         .nest_service("/", ServeDir::new("public"))
         .with_state(pool);
 
