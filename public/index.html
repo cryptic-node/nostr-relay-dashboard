@@ -9,6 +9,21 @@
     <style>
         body { background: #111111; font-family: system-ui; }
         .card { background: #1f1f1f; }
+        .tooltip { position: relative; }
+        .tooltip:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #111;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 50;
+        }
     </style>
 </head>
 <body class="text-white">
@@ -32,13 +47,14 @@
                     <span class="bg-zinc-800 text-xs px-3 py-1 rounded-full" id="relay-count">5 relays</span>
                 </div>
                 <div id="relays-list" class="space-y-3"></div>
-                <!-- Add new relay -->
-                <div class="mt-6 flex gap-2">
+                <!-- Add relay form -->
+                <div class="mt-6 flex flex-wrap gap-2">
                     <input id="relay-url" type="text" placeholder="wss://new-relay.example.com" 
-                           class="flex-1 bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                           class="flex-1 min-w-[200px] bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <input id="relay-name" type="text" placeholder="Name (optional)" 
-                           class="w-48 bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none">
-                    <button onclick="addRelay()" class="bg-blue-500 hover:bg-blue-600 px-6 rounded-xl font-medium">Add</button>
+                           class="flex-1 min-w-[140px] bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none">
+                    <button onclick="addRelay()" 
+                            class="bg-blue-500 hover:bg-blue-600 px-8 rounded-xl font-medium whitespace-nowrap">Add</button>
                 </div>
             </div>
 
@@ -49,12 +65,13 @@
                     <span class="bg-zinc-800 text-xs px-3 py-1 rounded-full" id="npub-count">1 npubs</span>
                 </div>
                 <div id="npubs-list" class="space-y-3"></div>
-                <div class="mt-6 flex gap-2">
+                <div class="mt-6 flex flex-wrap gap-2">
                     <input id="npub-input" type="text" placeholder="npub1..." 
-                           class="flex-1 bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                           class="flex-1 min-w-[200px] bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500">
                     <input id="label-input" type="text" placeholder="Label (optional)" 
-                           class="w-48 bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none">
-                    <button onclick="addNpub()" class="bg-green-500 hover:bg-green-600 px-8 rounded-xl font-medium whitespace-nowrap">Add</button>
+                           class="flex-1 min-w-[140px] bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none">
+                    <button onclick="addNpub()" 
+                            class="bg-green-500 hover:bg-green-600 px-8 rounded-xl font-medium whitespace-nowrap">Add</button>
                 </div>
             </div>
 
@@ -88,7 +105,7 @@
             const relays = await relaysRes.json();
             const npubs = await npubsRes.json();
 
-            // Relays with delete
+            // Relays
             document.getElementById('relays-list').innerHTML = relays.map(r => `
                 <div class="bg-zinc-900 rounded-xl p-4 flex justify-between items-center group">
                     <div>
@@ -96,16 +113,17 @@
                         <div class="text-zinc-400 text-xs">${r.name || ''}</div>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span class="bg-orange-500 text-[10px] px-2 py-0.5 rounded">PRELOADED</span>
+                        <span class="tooltip bg-orange-500 text-[10px] px-2 py-0.5 rounded" data-tooltip="Preloaded popular public relays that are added automatically">PRELOADED</span>
                         <div class="flex items-center gap-1 text-green-400 text-xs"><span class="w-2 h-2 bg-green-400 rounded-full"></span>ENABLED</div>
                         <button onclick="deleteRelay(${r.id}); event.stopImmediatePropagation();" class="text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
             `).join('');
 
-            // Npubs with delete
+            // Npubs with highlight
             document.getElementById('npubs-list').innerHTML = npubs.map(n => `
-                <div onclick="selectNpub('${n.npub}', '${n.label || ''}')" class="bg-zinc-900 hover:bg-zinc-800 cursor-pointer rounded-xl p-4 transition-all flex justify-between items-center ${selectedNpub === n.npub ? 'ring-2 ring-purple-500' : ''}">
+                <div onclick="selectNpub('${n.npub}', '${n.label || ''}')" 
+                     class="bg-zinc-900 hover:bg-zinc-800 cursor-pointer rounded-xl p-4 transition-all flex justify-between items-center ${selectedNpub === n.npub ? 'ring-2 ring-purple-500' : ''}">
                     <div>
                         <div class="font-mono text-sm break-all">${n.npub}</div>
                         ${n.label ? `<div class="text-green-400 text-xs mt-1">${n.label}</div>` : ''}
@@ -123,12 +141,12 @@
             selectedNpub = npub;
             document.getElementById('selected-npub').textContent = label || npub.substring(0, 12) + '...';
             await loadRecentEvents();
-            loadData();
+            loadData();   // refresh highlight
         };
 
         async function loadRecentEvents() {
             if (!selectedNpub) return;
-            const res = await fetch(`/api/events?npub=${selectedNpub}`);
+            const res = await fetch(`/api/events?npub=${encodeURIComponent(selectedNpub)}`);
             const events = await res.json();
             const container = document.getElementById('events-list');
             const noEvents = document.getElementById('no-events');
@@ -150,17 +168,13 @@
             `).join('');
         }
 
+        // Add relay / npub / delete functions (same as before)
         window.addRelay = async function() {
             const url = document.getElementById('relay-url').value.trim();
             const name = document.getElementById('relay-name').value.trim();
             if (!url) return alert('Enter a relay URL');
-            await fetch('/api/relays', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({url, name: name || null})
-            });
-            document.getElementById('relay-url').value = '';
-            document.getElementById('relay-name').value = '';
+            await fetch('/api/relays', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url, name: name||null})});
+            document.getElementById('relay-url').value = ''; document.getElementById('relay-name').value = '';
             loadData();
         };
 
@@ -168,35 +182,23 @@
             const npub = document.getElementById('npub-input').value.trim();
             const label = document.getElementById('label-input').value.trim();
             if (!npub) return alert('Enter an npub');
-            await fetch('/api/npubs', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({npub, label: label || null})
-            });
-            document.getElementById('npub-input').value = '';
-            document.getElementById('label-input').value = '';
+            await fetch('/api/npubs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({npub, label: label||null})});
+            document.getElementById('npub-input').value = ''; document.getElementById('label-input').value = '';
             loadData();
         };
 
         window.deleteRelay = async function(id) {
-            if (confirm('Delete this relay?')) {
-                await fetch(`/api/relays/${id}`, {method: 'DELETE'});
-                loadData();
-            }
+            if (confirm('Delete this relay?')) { await fetch(`/api/relays/${id}`, {method:'DELETE'}); loadData(); }
         };
 
         window.deleteNpub = async function(id) {
-            if (confirm('Delete this npub?')) {
-                await fetch(`/api/npubs/${id}`, {method: 'DELETE'});
-                loadData();
-                if (selectedNpub) loadRecentEvents();
-            }
+            if (confirm('Delete this npub?')) { await fetch(`/api/npubs/${id}`, {method:'DELETE'}); loadData(); if (selectedNpub) loadRecentEvents(); }
         };
 
         window.triggerSync = async function() {
             const status = document.getElementById('status');
             status.innerHTML = '🔄 Syncing...';
-            const res = await fetch('/api/sync', {method: 'POST'});
+            const res = await fetch('/api/sync', {method:'POST'});
             const data = await res.json();
             status.innerHTML = data.success ? `🎉 ${data.message}` : `❌ ${data.message}`;
             loadData();
