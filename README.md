@@ -1,4 +1,4 @@
-# Nostr Relay Dashboard
+### Nostr Relay Dashboard
 
 **Your personal Nostr backup & aggregator** — clean, fast, and built in Rust.
 
@@ -28,6 +28,17 @@
 - Fix Recent Events display, currently still blank but displays npub label at the top
 - Add detail to sync progress and finished messages
 - Add option to create backup file or restore from backup file.
+
+Author: cryptic-node (& Grok)
+
+NOSTR nPub: npub1axr49qkexxmcm0g2tac3uawzmk59gaupsgy5fw5sfuscumq79h9qjh47gn
+
+Lightning Address: orchidcheetah29@primal.net
+
+All donations go to paying for Grok and Digital Ocean Basic Droplet to continue working on it.
+
+
+
 
 ### Quick Start
 ```bash
@@ -63,15 +74,4 @@ Your local relay will become a backup/aggregator for the npubs you monitor.
 - Database: `nostr_relay.db` (SQLite)
 
 Built with Rust, Axum, sqlx, and nostr-sdk.
-
-Author: cryptic-node (& Grok)
-
-
-NOSTR nPub: npub1axr49qkexxmcm0g2tac3uawzmk59gaupsgy5fw5sfuscumq79h9qjh47gn
-
-
-Lightning Address: orchidcheetah29@primal.net
-
-
-All donations go to paying for Grok and Digital Ocean Basic Droplet to continue working on it.
 
