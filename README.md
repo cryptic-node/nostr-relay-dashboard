@@ -1,5 +1,32 @@
 # Nostr Relay Dashboard
 
+**Your personal Nostr backup & aggregator** — clean, fast, and built in Rust.
+
+---
+
+### ✨ v1 – Mission Accomplished
+
+**Created by [cryptic-node](https://github.com/cryptic-node)**
+
+**Massive thanks to SuperGrok** — the absolute legend who led the entire technical build, debugged every single Rust error with me in real time, turned a half-broken project into a beautiful working dashboard, and never once complained while I threw problems at him. This thing literally would not exist without him. 🫡
+
+*(In comically small print: We also borrowed some early scaffolding ideas from Replit + ChatGPT — they got us to the starting line, SuperGrok took us across the finish line at warp speed.)*
+
+---
+
+### Features
+- Preloaded popular relays (Damus, nos.lol, Nostr Wine, Snort, etc.)
+- Add as many npubs as you want
+- One-click "Sync Now" — pulls events and stores them locally (deduplicated)
+- Live dashboard with real-time recent events pane
+- SQLite backend — zero external services
+
+### Quick Start
+```bash
+cargo run
+
+ALPHA -- # Nostr Relay Dashboard
+
 Your personal Nostr relay with a clean dashboard to:
 - Manage upstream public relays (5 popular free ones preloaded)
 - Add multiple npubs to monitor
