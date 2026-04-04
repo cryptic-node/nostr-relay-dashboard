@@ -3,6 +3,7 @@ use sqlx::SqlitePool;
 use tower_http::services::ServeDir;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use tokio::net::TcpListener;
 use tracing_subscriber;
 
 mod sync;
@@ -26,13 +27,25 @@ struct ApiResponse {
 }
 
 async fn get_relays(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value>> {
-    let relays: Vec<serde_json::Value> = sqlx::query_as(
+    let relays = sqlx::query(
         "SELECT id, url, name, enabled, preloaded, created_at FROM upstream_relays"
     )
     .fetch_all(&pool)
     .await
     .unwrap_or_default();
-    Json(relays)
+
+    let json_relays: Vec<serde_json::Value> = relays.into_iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<i64, _>("id"),
+            "url": row.get::<String, _>("url"),
+            "name": row.get::<Option<String>, _>("name"),
+            "enabled": row.get::<i64, _>("enabled") != 0,
+            "preloaded": row.get::<i64, _>("preloaded") != 0,
+            "created_at": row.get::<Option<String>, _>("created_at"),
+        })
+    }).collect();
+
+    Json(json_relays)
 }
 
 async fn add_relay(State(pool): State<SqlitePool>, Json(req): Json<AddRelayRequest>) -> Json<ApiResponse> {
@@ -51,13 +64,24 @@ async fn add_relay(State(pool): State<SqlitePool>, Json(req): Json<AddRelayReque
 }
 
 async fn get_npubs(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value>> {
-    let npubs: Vec<serde_json::Value> = sqlx::query_as(
+    let npubs = sqlx::query(
         "SELECT id, npub, label, last_synced, created_at FROM monitored_npubs"
     )
     .fetch_all(&pool)
     .await
     .unwrap_or_default();
-    Json(npubs)
+
+    let json_npubs: Vec<serde_json::Value> = npubs.into_iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<i64, _>("id"),
+            "npub": row.get::<String, _>("npub"),
+            "label": row.get::<Option<String>, _>("label"),
+            "last_synced": row.get::<Option<String>, _>("last_synced"),
+            "created_at": row.get::<Option<String>, _>("created_at"),
+        })
+    }).collect();
+
+    Json(json_npubs)
 }
 
 async fn add_npub(State(pool): State<SqlitePool>, Json(req): Json<AddNpubRequest>) -> Json<ApiResponse> {
@@ -91,7 +115,7 @@ async fn main() {
         .await
         .expect("Failed to connect to SQLite");
 
-    // Run migrations (assumes you have the migration files in ./migrations/)
+    // Run migrations
     sqlx::migrate!()
         .run(&pool)
         .await
@@ -111,11 +135,12 @@ async fn main() {
         .with_state(pool);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    println!("🚀 Nostr Relay Dashboard running on http://0.0.0.0:8080");
+    println!("Nostr Relay Dashboard running on http://0.0.0.0:8080");
     println!("Open it in your browser and try adding an npub + clicking Sync Now");
 
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
+    // Updated Axum 0.7 server startup
+    let listener = TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
 }
