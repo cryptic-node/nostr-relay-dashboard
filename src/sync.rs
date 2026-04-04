@@ -1,8 +1,8 @@
-use nostr_sdk::{Client, Filter, Kind, RelayPool};
+use nostr_sdk::{Client, Filter, Kind, ClientBuilder};
 use nostr::PublicKey;
 use sqlx::SqlitePool;
 use std::str::FromStr;
-use tokio::time::{sleep, Duration};
+use std::time::Duration;
 
 pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
     let npubs: Vec<(String, Option<String>)> = sqlx::query_as(
@@ -29,8 +29,10 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
 
     println!("🔄 Starting sync for {} npubs from {} relays...", npubs.len(), relays.len());
 
-    let client = Client::new(RelayPool::new());
+    // Create client WITHOUT signer (we only read, no signing needed)
+    let client = ClientBuilder::default().build();
 
+    // Add all enabled relays
     for url in &relays {
         if let Err(e) = client.add_relay(url).await {
             println!("⚠️ Failed to add relay {}: {}", url, e);
@@ -58,11 +60,12 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
                 Kind::ContactList,
                 Kind::Repost,
                 Kind::Reaction,
-                Kind::Zap,
+                Kind::ZapReceipt,   // corrected from Zap
             ])
-            .limit(300);  // batch size — safe starting point
+            .limit(300);
 
-        match client.get_events_of(vec![filter], None).await {
+        // Use fetch_events (the correct method in current nostr-sdk)
+        match client.fetch_events(filter, Duration::from_secs(15)).await {
             Ok(events) => {
                 for event in events {
                     let inserted = sqlx::query(
@@ -85,11 +88,12 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
                         total_inserted += 1;
                     }
                 }
+                println!("✅ Fetched {} events for npub {}", events.len(), npub_str);
             }
             Err(e) => println!("⚠️ Error fetching for {}: {}", npub_str, e),
         }
 
-        // Update timestamp
+        // Update last_synced timestamp
         let _ = sqlx::query("UPDATE monitored_npubs SET last_synced = CURRENT_TIMESTAMP WHERE npub = ?")
             .bind(&npub_str)
             .execute(&pool)
@@ -97,17 +101,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
     }
 
     Ok(format!(
-        "✅ Sync complete! Inserted {} new events from {} npubs.",
-        total_inserted, npubs.len()
+        "✅ Sync complete! Inserted {} new events from {} npubs across {} relays.",
+        total_inserted, npubs.len(), relays.len()
     ))
-}
-
-// Background sync (runs every hour) — you can call this from main later
-pub async fn background_sync(pool: SqlitePool) {
-    loop {
-        if let Err(e) = sync_npubs(pool.clone()).await {
-            tracing::error!("Background sync error: {}", e);
-        }
-        sleep(Duration::from_secs(3600)).await;
-    }
 }
