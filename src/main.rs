@@ -11,39 +11,70 @@ use nostr::PublicKey;
 mod sync;
 
 #[derive(Deserialize)]
-struct AddNpubRequest { npub: String; label: Option<String>; }
+struct AddNpubRequest {
+    npub: String,
+    label: Option<String>,
+}
 
 #[derive(Deserialize)]
-struct AddRelayRequest { url: String; name: Option<String>; }
+struct AddRelayRequest {
+    url: String,
+    name: Option<String>,
+}
 
 #[derive(Serialize)]
-struct ApiResponse { success: bool; message: String; }
+struct ApiResponse {
+    success: bool,
+    message: String,
+}
 
 #[derive(Serialize)]
 struct EventPreview {
-    id: String, kind: u16, kind_name: String,
-    content: String, created_at: String,
+    id: String,
+    kind: u16,
+    kind_name: String,
+    content: String,
+    created_at: String,
 }
 
 async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): State<SqlitePool>) -> Json<Vec<EventPreview>> {
-    let npub_str = match params.get("npub") { Some(n) => n, None => return Json(vec![]), };
-    let pubkey = match PublicKey::parse(npub_str) { Ok(pk) => pk, Err(_) => return Json(vec![]), };
+    let npub_str = match params.get("npub") {
+        Some(n) => n,
+        None => return Json(vec![]),
+    };
+
+    let pubkey = match PublicKey::parse(npub_str) {
+        Ok(pk) => pk,
+        Err(_) => return Json(vec![]),
+    };
     let pubkey_hex = pubkey.to_hex();
 
-    let events = sqlx::query("SELECT id, kind, content, created_at FROM events WHERE pubkey = ? ORDER BY created_at DESC LIMIT 10")
-        .bind(pubkey_hex)
-        .fetch_all(&pool)
-        .await
-        .unwrap_or_default();
+    let events = sqlx::query(
+        "SELECT id, kind, content, created_at FROM events 
+         WHERE pubkey = ? 
+         ORDER BY created_at DESC LIMIT 10"
+    )
+    .bind(pubkey_hex)
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
 
     let previews: Vec<EventPreview> = events.into_iter().map(|row| {
         let kind = row.get::<i64, _>("kind") as u16;
-        let kind_name = match kind { 0 => "Profile", 1 => "Text", 3 => "Contacts", 6 => "Repost", 7 => "Reaction", 9735 => "Zap", _ => "Event" }.to_string();
+        let kind_name = match kind {
+            0 => "Profile", 1 => "Text", 3 => "Contacts",
+            6 => "Repost", 7 => "Reaction", 9735 => "Zap",
+            _ => "Event",
+        }.to_string();
+
         EventPreview {
             id: row.get::<String, _>("id"),
             kind,
             kind_name,
-            content: { let c = row.get::<String, _>("content"); if c.len() > 120 { c.chars().take(120).collect::<String>() + "…" } else { c } },
+            content: {
+                let c = row.get::<String, _>("content");
+                if c.len() > 120 { c.chars().take(120).collect::<String>() + "…" } else { c }
+            },
             created_at: row.get::<Option<i64>, _>("created_at").map_or("".to_string(), |v| v.to_string()),
         }
     }).collect();
@@ -51,24 +82,112 @@ async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): 
     Json(previews)
 }
 
-// ... (the rest of the file is the same as the last main.rs I gave you — get_relays, add_relay, delete_relay, get_npubs, add_npub, delete_npub, trigger_sync, main() )
+async fn get_relays(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value>> {
+    let relays = sqlx::query("SELECT id, url, name, enabled, preloaded, created_at FROM upstream_relays")
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
 
-// (I'm keeping the full file short here to save space — paste the entire thing from my previous message if you need it, or tell me and I'll repaste the whole thing.)
+    let json_relays: Vec<serde_json::Value> = relays.into_iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<i64, _>("id"),
+            "url": row.get::<String, _>("url"),
+            "name": row.get::<Option<String>, _>("name"),
+            "enabled": row.get::<i64, _>("enabled") != 0,
+            "preloaded": row.get::<i64, _>("preloaded") != 0,
+            "created_at": row.get::<Option<i64>, _>("created_at").map_or("".to_string(), |v| v.to_string()),
+        })
+    }).collect();
+
+    Json(json_relays)
+}
+
+async fn add_relay(State(pool): State<SqlitePool>, Json(req): Json<AddRelayRequest>) -> Json<ApiResponse> {
+    let result = sqlx::query("INSERT INTO upstream_relays (url, name) VALUES (?, ?)")
+        .bind(&req.url)
+        .bind(&req.name)
+        .execute(&pool)
+        .await;
+
+    match result {
+        Ok(_) => Json(ApiResponse { success: true, message: "Relay added successfully".to_string() }),
+        Err(e) => Json(ApiResponse { success: false, message: format!("Failed: {}", e) }),
+    }
+}
+
+async fn delete_relay(Path(id): Path<i64>, State(pool): State<SqlitePool>) -> Json<ApiResponse> {
+    let _ = sqlx::query("DELETE FROM upstream_relays WHERE id = ?").bind(id).execute(&pool).await;
+    Json(ApiResponse { success: true, message: "Relay deleted".to_string() })
+}
+
+async fn get_npubs(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value>> {
+    let npubs = sqlx::query("SELECT id, npub, label, last_synced, created_at FROM monitored_npubs")
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
+    let json_npubs: Vec<serde_json::Value> = npubs.into_iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<i64, _>("id"),
+            "npub": row.get::<String, _>("npub"),
+            "label": row.get::<Option<String>, _>("label"),
+            "last_synced": row.get::<Option<i64>, _>("last_synced").map_or("".to_string(), |v| v.to_string()),
+            "created_at": row.get::<Option<i64>, _>("created_at").map_or("".to_string(), |v| v.to_string()),
+        })
+    }).collect();
+
+    Json(json_npubs)
+}
+
+async fn add_npub(State(pool): State<SqlitePool>, Json(req): Json<AddNpubRequest>) -> Json<ApiResponse> {
+    let result = sqlx::query("INSERT INTO monitored_npubs (npub, label) VALUES (?, ?)")
+        .bind(&req.npub)
+        .bind(&req.label)
+        .execute(&pool)
+        .await;
+
+    match result {
+        Ok(_) => Json(ApiResponse { success: true, message: "Npub added successfully".to_string() }),
+        Err(e) => Json(ApiResponse { success: false, message: format!("Failed: {}", e) }),
+    }
+}
+
+async fn delete_npub(Path(id): Path<i64>, State(pool): State<SqlitePool>) -> Json<ApiResponse> {
+    let _ = sqlx::query("DELETE FROM monitored_npubs WHERE id = ?").bind(id).execute(&pool).await;
+    Json(ApiResponse { success: true, message: "Npub deleted".to_string() })
+}
+
+async fn trigger_sync(State(pool): State<SqlitePool>) -> Json<ApiResponse> {
+    match sync::sync_npubs(pool.clone()).await {
+        Ok(msg) => Json(ApiResponse { success: true, message: msg }),
+        Err(e) => Json(ApiResponse { success: false, message: e }),
+    }
+}
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
-    let pool = SqlitePool::connect("sqlite:nostr_relay.db?mode=rwc").await.expect("Failed to connect");
-    sqlx::migrate!().run(&pool).await.expect("Migrations failed");
 
-    // Seed preloaded relays (only once)
-    let _ = sqlx::query("INSERT OR IGNORE INTO upstream_relays (url, name, enabled, preloaded) VALUES 
-        ('wss://relay.damus.io', 'Damus', 1, 1),
-        ('wss://nos.lol', 'nos.lol', 1, 1),
-        ('wss://nostr.wine', 'Nostr Wine', 1, 1),
-        ('wss://relay.snort.social', 'Snort', 1, 1),
-        ('wss://nostr.mutinywallet.com', 'Mutiny', 1, 1)")
-        .execute(&pool).await;
+    let pool = SqlitePool::connect("sqlite:nostr_relay.db?mode=rwc")
+        .await
+        .expect("Failed to connect to SQLite");
+
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .expect("Failed to run database migrations");
+
+    // Seed the 5 popular preloaded relays (only once)
+    let _ = sqlx::query(
+        "INSERT OR IGNORE INTO upstream_relays (url, name, enabled, preloaded) VALUES 
+         ('wss://relay.damus.io', 'Damus', 1, 1),
+         ('wss://nos.lol', 'nos.lol', 1, 1),
+         ('wss://nostr.wine', 'Nostr Wine', 1, 1),
+         ('wss://relay.snort.social', 'Snort', 1, 1),
+         ('wss://nostr.mutinywallet.com', 'Mutiny', 1, 1)"
+    )
+    .execute(&pool)
+    .await;
 
     println!("✅ Database ready (preloaded relays seeded)");
 
