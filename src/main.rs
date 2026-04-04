@@ -1,5 +1,5 @@
 use axum::{routing::{get, post}, Router, Json, extract::State};
-use sqlx::SqlitePool;
+use sqlx::{SqlitePool, Row};                    // ← added Row here
 use tower_http::services::ServeDir;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -110,7 +110,7 @@ async fn trigger_sync(State(pool): State<SqlitePool>) -> Json<ApiResponse> {
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    // Connect to SQLite (creates db if it doesn't exist)
+    // Connect to SQLite
     let pool = SqlitePool::connect("sqlite:nostr_relay.db?mode=rwc")
         .await
         .expect("Failed to connect to SQLite");
@@ -121,24 +121,19 @@ async fn main() {
         .await
         .expect("Failed to run database migrations");
 
-    println!("Database connected and migrations applied.");
+    println!("✅ Database connected and migrations applied.");
 
     let app = Router::new()
-        // API routes
         .route("/api/relays", get(get_relays).post(add_relay))
         .route("/api/npubs", get(get_npubs).post(add_npub))
         .route("/api/sync", post(trigger_sync))
-        
-        // Serve the frontend dashboard
         .nest_service("/", ServeDir::new("public"))
-        
         .with_state(pool);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    println!("Nostr Relay Dashboard running on http://0.0.0.0:8080");
-    println!("Open it in your browser and try adding an npub + clicking Sync Now");
+    println!("🚀 Nostr Relay Dashboard running on http://0.0.0.0:8080");
 
-    // Updated Axum 0.7 server startup
+    // Correct axum 0.7 server startup
     let listener = TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
         .await
