@@ -65,7 +65,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
 
         match client.fetch_events(filter, Duration::from_secs(20)).await {
             Ok(events) => {
-                for event in &events {   // changed to &events so we can still use .len()
+                for event in events.iter() {   // changed to &events so we can still use .len()
                     let inserted = sqlx::query(
                         "INSERT OR IGNORE INTO events (id, pubkey, kind, content, created_at, tags, sig) 
                          VALUES (?, ?, ?, ?, ?, ?, ?)"
