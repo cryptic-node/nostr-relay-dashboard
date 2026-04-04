@@ -36,6 +36,7 @@ struct EventPreview {
     created_at: String,
 }
 
+// New: Recent events for a selected npub
 async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): State<SqlitePool>) -> Json<Vec<EventPreview>> {
     let npub = match params.get("npub") {
         Some(n) => n,
@@ -68,7 +69,10 @@ async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): 
             id: row.get::<String, _>("id"),
             kind,
             kind_name,
-            content: row.get::<String, _>("content").chars().take(120).collect::<String>() + if row.get::<String, _>("content").len() > 120 { "…" } else { "" },
+            content: {
+                let c = row.get::<String, _>("content");
+                if c.len() > 120 { c.chars().take(120).collect::<String>() + "…" } else { c }
+            },
             created_at: row.get::<String, _>("created_at"),
         }
     }).collect();
@@ -76,13 +80,85 @@ async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): 
     Json(previews)
 }
 
-// ... (the rest of your main.rs stays exactly the same until the router)
+async fn get_relays(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value>> {
+    let relays = sqlx::query(
+        "SELECT id, url, name, enabled, preloaded, created_at FROM upstream_relays"
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
 
-async fn get_relays(...) { ... }   // keep your existing functions
-async fn add_relay(...) { ... }
-async fn get_npubs(...) { ... }
-async fn add_npub(...) { ... }
-async fn trigger_sync(...) { ... }
+    let json_relays: Vec<serde_json::Value> = relays.into_iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<i64, _>("id"),
+            "url": row.get::<String, _>("url"),
+            "name": row.get::<Option<String>, _>("name"),
+            "enabled": row.get::<i64, _>("enabled") != 0,
+            "preloaded": row.get::<i64, _>("preloaded") != 0,
+            "created_at": row.get::<Option<String>, _>("created_at"),
+        })
+    }).collect();
+
+    Json(json_relays)
+}
+
+async fn add_relay(State(pool): State<SqlitePool>, Json(req): Json<AddRelayRequest>) -> Json<ApiResponse> {
+    let result = sqlx::query(
+        "INSERT INTO upstream_relays (url, name) VALUES (?, ?)"
+    )
+    .bind(&req.url)
+    .bind(&req.name)
+    .execute(&pool)
+    .await;
+
+    match result {
+        Ok(_) => Json(ApiResponse { success: true, message: "Relay added successfully".to_string() }),
+        Err(e) => Json(ApiResponse { success: false, message: format!("Failed to add relay: {}", e) }),
+    }
+}
+
+async fn get_npubs(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value>> {
+    let npubs = sqlx::query(
+        "SELECT id, npub, label, last_synced, created_at FROM monitored_npubs"
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
+
+    let json_npubs: Vec<serde_json::Value> = npubs.into_iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<i64, _>("id"),
+            "npub": row.get::<String, _>("npub"),
+            "label": row.get::<Option<String>, _>("label"),
+            "last_synced": row.get::<Option<String>, _>("last_synced"),
+            "created_at": row.get::<Option<String>, _>("created_at"),
+        })
+    }).collect();
+
+    Json(json_npubs)
+}
+
+async fn add_npub(State(pool): State<SqlitePool>, Json(req): Json<AddNpubRequest>) -> Json<ApiResponse> {
+    let result = sqlx::query(
+        "INSERT INTO monitored_npubs (npub, label) VALUES (?, ?)"
+    )
+    .bind(&req.npub)
+    .bind(&req.label)
+    .execute(&pool)
+    .await;
+
+    match result {
+        Ok(_) => Json(ApiResponse { success: true, message: "Npub added successfully".to_string() }),
+        Err(e) => Json(ApiResponse { success: false, message: format!("Failed to add npub: {}", e) }),
+    }
+}
+
+async fn trigger_sync(State(pool): State<SqlitePool>) -> Json<ApiResponse> {
+    match sync::sync_npubs(pool.clone()).await {
+        Ok(msg) => Json(ApiResponse { success: true, message: msg }),
+        Err(e) => Json(ApiResponse { success: false, message: e }),
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -103,7 +179,7 @@ async fn main() {
         .route("/api/relays", get(get_relays).post(add_relay))
         .route("/api/npubs", get(get_npubs).post(add_npub))
         .route("/api/sync", post(trigger_sync))
-        .route("/api/events", get(get_events))           // ← NEW
+        .route("/api/events", get(get_events))           // ← new recent events endpoint
         .nest_service("/", ServeDir::new("public"))
         .with_state(pool);
 
