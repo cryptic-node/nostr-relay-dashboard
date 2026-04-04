@@ -24,7 +24,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <!-- Upstream Relays -->
             <div class="card rounded-2xl p-6" id="relays-panel">
                 <div class="flex justify-between items-center mb-4">
@@ -42,29 +42,28 @@
                 </div>
                 <div id="npubs-list" class="space-y-3"></div>
                 
-                <!-- Add npub form -->
-                <div class="mt-6 flex gap-2">
+                <!-- FIXED: Add form - always visible -->
+                <div class="mt-6 flex flex-wrap gap-2">
                     <input id="npub-input" type="text" placeholder="npub1..." 
-                           class="flex-1 bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                           class="flex-1 min-w-[180px] bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500">
                     <input id="label-input" type="text" placeholder="Label (optional)" 
-                           class="w-48 bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none">
+                           class="flex-1 min-w-[140px] bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none">
                     <button onclick="addNpub()" 
-                            class="bg-green-500 hover:bg-green-600 px-6 rounded-xl font-medium">Add</button>
+                            class="bg-green-500 hover:bg-green-600 px-8 rounded-xl font-medium whitespace-nowrap">Add</button>
                 </div>
             </div>
 
-            <!-- NEW: Recent Events -->
+            <!-- Recent Events -->
             <div class="card rounded-2xl p-6" id="events-panel">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold">Recent Events</h2>
-                    <span id="selected-npub" class="text-zinc-400 text-sm"></span>
+                    <span id="selected-npub" class="text-zinc-400 text-sm font-mono"></span>
                 </div>
                 <div id="events-list" class="space-y-3 min-h-[400px]"></div>
-                <p id="no-events" class="text-zinc-500 text-center py-8 hidden">Select an npub on the left to see recent events</p>
+                <p id="no-events" class="text-zinc-500 text-center py-12 hidden">Click any npub on the left to see its 10 most recent events</p>
             </div>
         </div>
 
-        <!-- Sync Button -->
         <div class="mt-8 flex justify-center">
             <button onclick="triggerSync()" 
                     class="bg-purple-600 hover:bg-purple-700 text-white text-xl font-semibold px-12 py-5 rounded-3xl flex items-center gap-3 shadow-lg shadow-purple-500/30">
@@ -80,37 +79,24 @@
         let selectedNpub = null;
 
         async function loadData() {
-            const [relaysRes, npubsRes] = await Promise.all([
-                fetch('/api/relays'), fetch('/api/npubs')
-            ]);
+            const [relaysRes, npubsRes] = await Promise.all([fetch('/api/relays'), fetch('/api/npubs')]);
             const relays = await relaysRes.json();
             const npubs = await npubsRes.json();
 
-            // Render relays
             document.getElementById('relays-list').innerHTML = relays.map(r => `
                 <div class="bg-zinc-900 rounded-xl p-4 flex justify-between items-center">
-                    <div>
-                        <div class="font-mono text-sm text-blue-400">${r.url}</div>
-                        <div class="text-zinc-400 text-xs">${r.name || ''}</div>
-                    </div>
-                    <div class="text-right">
-                        <span class="bg-orange-500 text-[10px] px-2 py-0.5 rounded">PRELOADED</span>
-                        <div class="flex items-center gap-1 text-green-400 text-xs mt-1">
-                            <span class="w-2 h-2 bg-green-400 rounded-full"></span> ENABLED
-                        </div>
-                    </div>
-                </div>
-            `).join('');
+                    <div><div class="font-mono text-sm text-blue-400">${r.url}</div><div class="text-zinc-400 text-xs">${r.name || ''}</div></div>
+                    <div class="text-right"><span class="bg-orange-500 text-[10px] px-2 py-0.5 rounded">PRELOADED</span>
+                    <div class="flex items-center gap-1 text-green-400 text-xs mt-1"><span class="w-2 h-2 bg-green-400 rounded-full"></span> ENABLED</div></div>
+                </div>`).join('');
 
-            // Render npubs
             document.getElementById('npubs-list').innerHTML = npubs.map(n => `
                 <div onclick="selectNpub('${n.npub}', '${n.label || ''}')" 
                      class="bg-zinc-900 hover:bg-zinc-800 cursor-pointer rounded-xl p-4 transition-all ${selectedNpub === n.npub ? 'ring-2 ring-purple-500' : ''}">
                     <div class="font-mono text-sm break-all">${n.npub}</div>
                     ${n.label ? `<div class="text-green-400 text-xs mt-1">${n.label}</div>` : ''}
                     ${n.last_synced ? `<div class="text-xs text-zinc-500 mt-2">Last sync: ${new Date(n.last_synced).toLocaleString()}</div>` : ''}
-                </div>
-            `).join('');
+                </div>`).join('');
 
             document.getElementById('relay-count').textContent = `${relays.length} relays`;
             document.getElementById('npub-count').textContent = `${npubs.length} npubs`;
@@ -120,23 +106,21 @@
             selectedNpub = npub;
             document.getElementById('selected-npub').textContent = label || npub.substring(0, 12) + '...';
             await loadRecentEvents();
-            loadData(); // refresh highlight
+            loadData();
         };
 
         async function loadRecentEvents() {
             if (!selectedNpub) return;
             const res = await fetch(`/api/events?npub=${selectedNpub}`);
             const events = await res.json();
-            
             const container = document.getElementById('events-list');
             const noEvents = document.getElementById('no-events');
-            
+
             if (events.length === 0) {
                 container.innerHTML = '';
                 noEvents.classList.remove('hidden');
                 return;
             }
-            
             noEvents.classList.add('hidden');
             container.innerHTML = events.map(e => `
                 <div class="bg-zinc-900 rounded-xl p-4 text-sm">
@@ -145,18 +129,15 @@
                         <span class="text-zinc-400">${new Date(e.created_at).toLocaleString()}</span>
                     </div>
                     <div class="text-zinc-300 leading-relaxed">${e.content}</div>
-                </div>
-            `).join('');
-        };
+                </div>`).join('');
+        }
 
         window.triggerSync = async function() {
             const status = document.getElementById('status');
             status.innerHTML = '🔄 Syncing...';
             const res = await fetch('/api/sync', { method: 'POST' });
             const data = await res.json();
-            status.innerHTML = data.success ? 
-                `🎉 ${data.message}` : 
-                `❌ ${data.message}`;
+            status.innerHTML = data.success ? `🎉 ${data.message}` : `❌ ${data.message}`;
             loadData();
             if (selectedNpub) loadRecentEvents();
         };
@@ -165,7 +146,6 @@
             const npub = document.getElementById('npub-input').value.trim();
             const label = document.getElementById('label-input').value.trim();
             if (!npub) return alert('Enter an npub');
-            
             await fetch('/api/npubs', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -176,7 +156,6 @@
             loadData();
         };
 
-        // Initial load
         window.onload = loadData;
     </script>
 </body>
