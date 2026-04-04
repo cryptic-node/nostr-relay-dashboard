@@ -25,7 +25,7 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Relays -->
+            <!-- Upstream Relays -->
             <div class="card rounded-2xl p-6">
                 <div class="flex justify-between mb-4">
                     <h2 class="text-2xl font-semibold">Upstream Relays</h2>
@@ -33,13 +33,13 @@
                 </div>
                 <div id="relays-list" class="space-y-3"></div>
                 <div class="mt-6 flex flex-wrap gap-2">
-                    <input id="relay-url" placeholder="wss://..." class="flex-1 min-w-[200px] bg-zinc-900 rounded-xl px-4 py-3">
-                    <input id="relay-name" placeholder="Name (optional)" class="flex-1 min-w-[140px] bg-zinc-900 rounded-xl px-4 py-3">
-                    <button onclick="addRelay()" class="bg-blue-500 px-8 rounded-xl font-medium">Add</button>
+                    <input id="relay-url" placeholder="wss://..." class="flex-1 min-w-[200px] bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input id="relay-name" placeholder="Name (optional)" class="flex-1 min-w-[140px] bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none">
+                    <button onclick="addRelay()" class="bg-blue-500 hover:bg-blue-600 px-8 rounded-xl font-medium">Add</button>
                 </div>
             </div>
 
-            <!-- Npubs -->
+            <!-- Monitored Npubs -->
             <div class="card rounded-2xl p-6">
                 <div class="flex justify-between mb-4">
                     <h2 class="text-2xl font-semibold">Monitored Npubs</h2>
@@ -47,9 +47,9 @@
                 </div>
                 <div id="npubs-list" class="space-y-3"></div>
                 <div class="mt-6 flex flex-wrap gap-2">
-                    <input id="npub-input" placeholder="npub1..." class="flex-1 min-w-[200px] bg-zinc-900 rounded-xl px-4 py-3">
-                    <input id="label-input" placeholder="Label (optional)" class="flex-1 min-w-[140px] bg-zinc-900 rounded-xl px-4 py-3">
-                    <button onclick="addNpub()" class="bg-green-500 px-8 rounded-xl font-medium">Add</button>
+                    <input id="npub-input" placeholder="npub1..." class="flex-1 min-w-[200px] bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <input id="label-input" placeholder="Label (optional)" class="flex-1 min-w-[140px] bg-zinc-900 rounded-xl px-4 py-3 focus:outline-none">
+                    <button onclick="addNpub()" class="bg-green-500 hover:bg-green-600 px-8 rounded-xl font-medium">Add</button>
                 </div>
             </div>
 
@@ -57,7 +57,7 @@
             <div class="card rounded-2xl p-6">
                 <div class="flex justify-between mb-4">
                     <h2 class="text-2xl font-semibold">Recent Events</h2>
-                    <span id="selected-npub" class="text-zinc-400 text-sm"></span>
+                    <span id="selected-npub" class="text-zinc-400 text-sm font-mono"></span>
                 </div>
                 <div id="events-list" class="space-y-3 min-h-[400px]"></div>
                 <p id="no-events" class="text-zinc-500 text-center py-12 hidden">Click any npub to see its 10 most recent events</p>
@@ -118,7 +118,8 @@
             const name = document.getElementById('relay-name').value.trim();
             if (!url) return;
             await fetch('/api/relays', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url, name: name||null})});
-            document.getElementById('relay-url').value = ''; document.getElementById('relay-name').value = '';
+            document.getElementById('relay-url').value = '';
+            document.getElementById('relay-name').value = '';
             loadData();
         };
 
@@ -127,7 +128,8 @@
             const label = document.getElementById('label-input').value.trim();
             if (!npub) return;
             await fetch('/api/npubs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({npub, label: label||null})});
-            document.getElementById('npub-input').value = ''; document.getElementById('label-input').value = '';
+            document.getElementById('npub-input').value = '';
+            document.getElementById('label-input').value = '';
             loadData();
         };
 
