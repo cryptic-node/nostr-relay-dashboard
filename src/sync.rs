@@ -46,7 +46,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
         let mut relay_inserted = 0usize;
 
         for (npub_str, _label) in &npubs {
-            let pubkey = match PublicKey::from_str(npub_str) {
+            let pubkey = match PublicKey::parse(npub_str) {
                 Ok(pk) => pk,
                 Err(_) => continue,
             };
