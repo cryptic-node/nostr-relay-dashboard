@@ -1,7 +1,6 @@
 use nostr_sdk::{ClientBuilder, Filter, Kind};
-use nostr::PublicKey;
+use nostr_sdk::nostr::PublicKey;
 use sqlx::SqlitePool;
-use std::str::FromStr;
 use std::time::Duration;
 
 pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
@@ -27,7 +26,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
         return Ok("No enabled upstream relays. Add some in the dashboard!".to_string());
     }
 
-    let num_relays = relays.len();   // capture length BEFORE we move relays
+    let num_relays = relays.len();
 
     println!("🔄 Starting sync — {} npubs from {} relays...", npubs.len(), num_relays);
 
@@ -95,11 +94,10 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
                         println!("   ✅ {} events from this relay for npub {}", num_fetched, npub_str);
                     }
                 }
-                Err(_) => {} // quiet — no error spam
+                Err(_) => {}
             }
         }
 
-        // Save stats for this relay
         let _ = sqlx::query(
             "UPDATE upstream_relays 
              SET last_sync_notes = ?, last_synced = CURRENT_TIMESTAMP 
