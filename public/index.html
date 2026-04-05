@@ -31,12 +31,11 @@
             </div>
         </div>
 
-        <!-- three panels unchanged -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Upstream Relays, Monitored Npubs, Recent Events — keep your existing panel code exactly as it was -->
+            <!-- Upstream Relays, Monitored Npubs, Recent Events panels — keep exactly as your current working version -->
         </div>
 
-        <div class="mt-8 flex justify-center gap-4">
+        <div class="mt-8 flex justify-center gap-4 flex-wrap">
             <button onclick="triggerSync()" class="bg-purple-600 hover:bg-purple-700 text-white text-xl font-semibold px-12 py-5 rounded-3xl flex items-center gap-3">
                 <i class="fas fa-sync"></i> Sync Now
             </button>
@@ -59,7 +58,8 @@
     </div>
 
     <script>
-        // all your existing functions (loadData, selectNpub, addRelay, etc.) stay exactly the same
+        // Your full existing script (loadData, selectNpub, addRelay, etc.) goes here exactly as it was in the last working version
+        // Only add these two new functions at the bottom:
 
         window.downloadLogs = async function() {
             const statusEl = document.getElementById('status');
@@ -69,9 +69,7 @@
             const blob = new Blob([text], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = 'nostr-logs.txt';
-            a.click();
+            a.href = url; a.download = 'nostr-logs.txt'; a.click();
             URL.revokeObjectURL(url);
             statusEl.innerHTML = '✅ Logs downloaded!';
         };
@@ -79,12 +77,11 @@
         window.restartServer = async function() {
             if (!confirm('Restart the Nostr Relay Dashboard server?')) return;
             const statusEl = document.getElementById('status');
-            statusEl.innerHTML = 'Restarting server...';
+            statusEl.innerHTML = 'Restarting server... (refresh after 5 seconds)';
             await fetch('/api/restart', { method: 'POST' });
-            statusEl.innerHTML = '✅ Server restart requested — refresh after a few seconds';
         };
 
-        // ... rest of your script (toggleNightly, loadSettings, etc.) unchanged
+        // ... rest of your script unchanged
     </script>
 </body>
 </html>
