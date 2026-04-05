@@ -5,7 +5,6 @@ use std::str::FromStr;
 use std::time::Duration;
 
 pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
-    // Load monitored npubs
     let npubs: Vec<(String, Option<String>)> = sqlx::query_as(
         "SELECT npub, label FROM monitored_npubs"
     )
@@ -17,9 +16,8 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
         return Ok("No monitored npubs configured yet. Add some in the dashboard!".to_string());
     }
 
-    // Load enabled upstream relays
-    let relays: Vec<String> = sqlx::query_scalar(
-        "SELECT url FROM upstream_relays WHERE enabled = 1"
+    let relays: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT id, url FROM upstream_relays WHERE enabled = 1"
     )
     .fetch_all(&pool)
     .await
@@ -31,87 +29,90 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
 
     println!("🔄 Starting sync — {} npubs from {} relays...", npubs.len(), relays.len());
 
-    let client = ClientBuilder::default().build();
-
-    // Add all relays
-    for url in &relays {
-        if let Err(e) = client.add_relay(url).await {
-            println!("⚠️ Could not add relay {}: {}", url, e);
-        }
-    }
-
-    client.connect().await;
-
     let mut total_inserted = 0usize;
 
-    for (npub_str, _label) in &npubs {
-        let pubkey = match PublicKey::from_str(npub_str) {
-            Ok(pk) => pk,
-            Err(_) => {
-                println!("❌ Skipping invalid npub: {}", npub_str);
-                continue;
-            }
-        };
+    for (relay_id, url) in relays {
+        println!("   Trying relay: {}", url);
 
-        let filter = Filter::new()
-            .pubkey(pubkey)
-            .kinds(vec![
-                Kind::Metadata,
-                Kind::TextNote,
-                Kind::ContactList,
-                Kind::Repost,
-                Kind::Reaction,
-                Kind::ZapReceipt,
-            ])
-            .limit(300);
+        let client = ClientBuilder::default().build();
+        if let Err(e) = client.add_relay(&url).await {
+            println!("   ❌ Failed to add {}: {}", url, e);
+            continue;
+        }
 
-        match client.fetch_events(filter, Duration::from_secs(25)).await {
-            Ok(events) => {
-                let num_fetched = events.len();
-                let mut inserted_count = 0;
+        client.connect().await;
 
-                for event in events {
-                    let inserted = sqlx::query(
-                        "INSERT OR IGNORE INTO events 
-                         (id, pubkey, kind, content, created_at, tags, sig)
-                         VALUES (?, ?, ?, ?, ?, ?, ?)"
-                    )
-                    .bind(event.id.to_hex())
-                    .bind(event.pubkey.to_hex())
-                    .bind(event.kind.as_u16() as i64)
-                    .bind(&event.content)
-                    .bind(event.created_at.as_secs() as i64)
-                    .bind(serde_json::to_string(&event.tags).unwrap_or_default())
-                    .bind(event.sig.to_string())           // ← fixed: Signature uses .to_string() in your version
-                    .execute(&pool)
-                    .await
-                    .is_ok();
+        let mut relay_inserted = 0usize;
 
-                    if inserted {
-                        inserted_count += 1;
-                        total_inserted += 1;
+        for (npub_str, _label) in &npubs {
+            let pubkey = match PublicKey::from_str(npub_str) {
+                Ok(pk) => pk,
+                Err(_) => continue,
+            };
+
+            let filter = Filter::new()
+                .pubkey(pubkey)
+                .kinds(vec![
+                    Kind::Metadata,
+                    Kind::TextNote,
+                    Kind::ContactList,
+                    Kind::Repost,
+                    Kind::Reaction,
+                    Kind::ZapReceipt,
+                ])
+                .limit(300);
+
+            match client.fetch_events(filter, Duration::from_secs(20)).await {
+                Ok(events) => {
+                    let num_fetched = events.len();
+                    let mut inserted_count = 0;
+
+                    for event in events {
+                        let inserted = sqlx::query(
+                            "INSERT OR IGNORE INTO events 
+                             (id, pubkey, kind, content, created_at, tags, sig)
+                             VALUES (?, ?, ?, ?, ?, ?, ?)"
+                        )
+                        .bind(event.id.to_hex())
+                        .bind(event.pubkey.to_hex())
+                        .bind(event.kind.as_u16() as i64)
+                        .bind(&event.content)
+                        .bind(event.created_at.as_secs() as i64)
+                        .bind(serde_json::to_string(&event.tags).unwrap_or_default())
+                        .bind(event.sig.to_string())
+                        .execute(&pool)
+                        .await
+                        .is_ok();
+
+                        if inserted {
+                            inserted_count += 1;
+                            total_inserted += 1;
+                            relay_inserted += 1;
+                        }
+                    }
+
+                    if num_fetched > 0 {
+                        println!("   ✅ {} events from this relay for npub {}", num_fetched, npub_str);
                     }
                 }
-
-                println!("✅ Fetched {} events for npub {} → {} new inserted", 
-                         num_fetched, npub_str, inserted_count);
-            }
-            Err(e) => {
-                println!("⚠️ Fetch error for {}: {}", npub_str, e);
+                Err(_) => {} // quiet — no error spam
             }
         }
 
-        // Update last sync timestamp
+        // Save stats for this relay
         let _ = sqlx::query(
-            "UPDATE monitored_npubs SET last_synced = CURRENT_TIMESTAMP WHERE npub = ?"
+            "UPDATE upstream_relays 
+             SET last_sync_notes = ?, last_synced = CURRENT_TIMESTAMP 
+             WHERE id = ?"
         )
-        .bind(npub_str)
+        .bind(relay_inserted as i64)
+        .bind(relay_id)
         .execute(&pool)
         .await;
     }
 
-    Ok(format!(
-        "🎉 Sync finished! Inserted {} new events from {} npubs across {} relays.",
-        total_inserted, npubs.len(), relays.len()
-    ))
+    let msg = format!("🎉 Sync finished! Inserted {} new events from {} npubs across {} relays.", 
+                      total_inserted, npubs.len(), relays.len());
+    println!("{}", msg);
+    Ok(msg)
 }
