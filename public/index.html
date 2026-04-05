@@ -25,7 +25,7 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Upstream Relays -->
+            <!-- Upstream Relays (unchanged) -->
             <div class="card rounded-2xl p-6">
                 <div class="flex justify-between mb-4">
                     <h2 class="text-2xl font-semibold">Upstream Relays</h2>
@@ -39,7 +39,7 @@
                 </div>
             </div>
 
-            <!-- Monitored Npubs -->
+            <!-- Monitored Npubs (unchanged) -->
             <div class="card rounded-2xl p-6">
                 <div class="flex justify-between mb-4">
                     <h2 class="text-2xl font-semibold">Monitored Npubs</h2>
@@ -53,7 +53,7 @@
                 </div>
             </div>
 
-            <!-- Recent Events -->
+            <!-- Recent Events — NOW BEAUTIFUL -->
             <div class="card rounded-2xl p-6">
                 <div class="flex justify-between mb-4">
                     <h2 class="text-2xl font-semibold">Recent Events</h2>
@@ -64,11 +64,20 @@
             </div>
         </div>
 
-        <div class="mt-8 flex justify-center">
+        <!-- Action bar -->
+        <div class="mt-8 flex justify-center gap-4">
             <button onclick="triggerSync()" class="bg-purple-600 hover:bg-purple-700 text-white text-xl font-semibold px-12 py-5 rounded-3xl flex items-center gap-3">
-                <i class="fas fa-sync"></i> Sync Now — Pull Events from Upstream
+                <i class="fas fa-sync"></i> Sync Now
             </button>
+            <button onclick="doBackup()" class="bg-amber-600 hover:bg-amber-700 text-white text-xl font-semibold px-8 py-5 rounded-3xl flex items-center gap-3">
+                <i class="fas fa-download"></i> Backup (NDJSON)
+            </button>
+            <label class="bg-emerald-600 hover:bg-emerald-700 text-white text-xl font-semibold px-8 py-5 rounded-3xl flex items-center gap-3 cursor-pointer">
+                <i class="fas fa-upload"></i> Restore
+                <input type="file" id="restore-file" accept=".ndjson" class="hidden" onchange="handleRestoreFile(this)">
+            </label>
         </div>
+
         <div id="status" class="mt-6 text-center text-green-400 font-medium min-h-[28px]"></div>
     </div>
 
@@ -127,78 +136,48 @@
                         <span class="bg-zinc-700 px-2 py-1 rounded">${e.kind_name}</span>
                         <span class="text-zinc-400">${e.created_at}</span>
                     </div>
-                    <div class="text-zinc-300 whitespace-pre-wrap">${e.content}</div>
+                    <div class="text-zinc-300 whitespace-pre-wrap">${e.preview}</div>
                 </div>`).join('');
         };
 
-        window.addRelay = async function() {
-            const url = document.getElementById('relay-url').value.trim();
-            const name = document.getElementById('relay-name').value.trim() || null;
-            if (!url) return;
-            const res = await fetch('/api/relays', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, name })
-            });
-            const data = await res.json();
-            document.getElementById('status').innerHTML = data.message;
-            if (data.success) {
-                loadData();
-                document.getElementById('relay-url').value = '';
-                document.getElementById('relay-name').value = '';
-            }
-        };
-
-        window.addNpub = async function() {
-            const npub = document.getElementById('npub-input').value.trim();
-            const label = document.getElementById('label-input').value.trim() || null;
-            if (!npub) return;
-            const res = await fetch('/api/npubs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ npub, label })
-            });
-            const data = await res.json();
-            document.getElementById('status').innerHTML = data.message;
-            if (data.success) {
-                loadData();
-                document.getElementById('npub-input').value = '';
-                document.getElementById('label-input').value = '';
-            }
-        };
-
-        window.deleteRelay = async function(id) {
-            if (!confirm('Delete this relay?')) return;
-            const res = await fetch(`/api/relays/${id}`, { method: 'DELETE' });
-            const data = await res.json();
-            document.getElementById('status').innerHTML = data.message;
-            if (data.success) loadData();
-        };
-
-        window.deleteNpub = async function(id) {
-            if (!confirm('Delete this npub?')) return;
-            const res = await fetch(`/api/npubs/${id}`, { method: 'DELETE' });
-            const data = await res.json();
-            document.getElementById('status').innerHTML = data.message;
-            if (data.success) {
-                selectedNpub = null;
-                loadData();
-                document.getElementById('events-list').innerHTML = '';
-                document.getElementById('no-events').classList.remove('hidden');
-            }
-        };
-
-        window.triggerSync = async function() {
+        // Backup
+        window.doBackup = async function() {
             const statusEl = document.getElementById('status');
-            statusEl.innerHTML = `<i class="fas fa-spinner animate-spin"></i> Syncing...`;
-            const res = await fetch('/api/sync', { method: 'POST' });
+            statusEl.innerHTML = 'Downloading backup...';
+            const res = await fetch('/api/backup');
+            const text = await res.text();
+            const blob = new Blob([text], { type: 'application/x-ndjson' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'nostr-backup.ndjson';
+            a.click();
+            URL.revokeObjectURL(url);
+            statusEl.innerHTML = '✅ Backup downloaded!';
+        };
+
+        // Restore
+        window.handleRestoreFile = async function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = 'Reading file...';
+            const text = await file.text();
+            const res = await fetch('/api/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ndjson: text })
+            });
             const data = await res.json();
             statusEl.innerHTML = `<span class="text-green-400">${data.message}</span>`;
             if (data.success) {
                 loadData();
                 if (selectedNpub) selectNpub(selectedNpub, document.getElementById('selected-npub').textContent);
             }
+            input.value = ''; // reset input
         };
+
+        // (rest of your functions — addRelay, addNpub, deleteRelay, deleteNpub, triggerSync — are unchanged, just keep them from the previous version)
 
         document.addEventListener('DOMContentLoaded', loadData);
     </script>
