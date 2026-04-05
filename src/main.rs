@@ -49,7 +49,7 @@ async fn ensure_tables(pool: &SqlitePool) {
     let _ = sqlx::query("INSERT OR IGNORE INTO settings (key, value) VALUES ('sync_frequency', 'nightly')").execute(pool).await;
 }
 
-// ==================== EVENTS (RIGHT PANE — NOTES NOW FIRST) ====================
+// ==================== EVENTS (RIGHT PANE — NOTES NOW FIRST, CONTACTS LAST) ====================
 async fn get_events(Query(params): Query<std::collections::HashMap<String, String>>, State(pool): State<SqlitePool>) -> Json<Vec<EventPreview>> {
     let npub_str = match params.get("npub") { Some(n) => n, None => return Json(vec![]), };
     let pubkey = match PublicKey::parse(npub_str) { Ok(pk) => pk, Err(_) => return Json(vec![]), };
@@ -57,8 +57,17 @@ async fn get_events(Query(params): Query<std::collections::HashMap<String, Strin
 
     let events = sqlx::query(
         "SELECT id, kind, content, tags, strftime('%Y-%m-%d %H:%M:%S', created_at, 'unixepoch') AS created_at_formatted
-         FROM events WHERE pubkey = ? 
-         ORDER BY CASE WHEN kind = 1 THEN 0 WHEN kind = 0 THEN 1 ELSE 2 END, created_at DESC LIMIT 1000"
+         FROM events 
+         WHERE pubkey = ? 
+         ORDER BY 
+           CASE 
+             WHEN kind = 1 THEN 0     -- Notes first
+             WHEN kind = 0 THEN 1     -- Profiles second
+             WHEN kind = 3 THEN 99    -- Contacts pushed to the very bottom
+             ELSE 2 
+           END, 
+           created_at DESC 
+         LIMIT 800"
     )
     .bind(pubkey_hex)
     .fetch_all(&pool)
@@ -84,7 +93,7 @@ async fn get_events(Query(params): Query<std::collections::HashMap<String, Strin
     Json(previews)
 }
 
-// ==================== ALL HANDLERS ====================
+// ==================== ALL OTHER HANDLERS (unchanged & complete) ====================
 async fn get_relays(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value>> {
     let relays = sqlx::query("SELECT id, url, name, enabled, preloaded, created_at, last_sync_notes, last_synced FROM upstream_relays")
         .fetch_all(&pool).await.unwrap_or_default();
