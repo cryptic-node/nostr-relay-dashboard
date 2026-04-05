@@ -34,7 +34,40 @@ struct EventPreview {
     kind: u16,
     kind_name: String,
     content: String,
-    created_at: String,   // now nicely formatted via SQLite strftime
+    created_at: String,
+}
+
+// NEW: Auto-add the two columns we need (no manual sqlite3 ever)
+async fn ensure_relay_stats_columns(pool: &SqlitePool) {
+    // Check for last_sync_notes
+    let has_notes: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('upstream_relays') WHERE name = 'last_sync_notes'"
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+
+    if has_notes == 0 {
+        let _ = sqlx::query("ALTER TABLE upstream_relays ADD COLUMN last_sync_notes INTEGER DEFAULT 0")
+            .execute(pool)
+            .await;
+        println!("✅ Added column: last_sync_notes");
+    }
+
+    // Check for last_synced
+    let has_synced: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('upstream_relays') WHERE name = 'last_synced'"
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+
+    if has_synced == 0 {
+        let _ = sqlx::query("ALTER TABLE upstream_relays ADD COLUMN last_synced TEXT")
+            .execute(pool)
+            .await;
+        println!("✅ Added column: last_synced");
+    }
 }
 
 async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): State<SqlitePool>) -> Json<Vec<EventPreview>> {
@@ -64,13 +97,8 @@ async fn get_events(Query(params): Query<HashMap<String, String>>, State(pool): 
     let previews: Vec<EventPreview> = events.into_iter().map(|row| {
         let kind = row.get::<i64, _>("kind") as u16;
         let kind_name = match kind {
-            0 => "Profile",
-            1 => "Text Note",
-            3 => "Contacts",
-            6 => "Repost",
-            7 => "Reaction",
-            9735 => "Zap",
-            _ => "Event",
+            0 => "Profile", 1 => "Text Note", 3 => "Contacts",
+            6 => "Repost", 7 => "Reaction", 9735 => "Zap", _ => "Event",
         }.to_string();
 
         EventPreview {
@@ -110,10 +138,10 @@ async fn delete_npub(Path(id): Path<i64>, State(pool): State<SqlitePool>) -> Jso
     }
 }
 
-// Everything below is unchanged from your working version
 async fn get_relays(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Value>> {
     let relays = sqlx::query(
-        "SELECT id, url, name, enabled, preloaded, created_at FROM upstream_relays"
+        "SELECT id, url, name, enabled, preloaded, created_at, last_sync_notes, last_synced 
+         FROM upstream_relays"
     )
     .fetch_all(&pool)
     .await
@@ -127,11 +155,15 @@ async fn get_relays(State(pool): State<SqlitePool>) -> Json<Vec<serde_json::Valu
             "enabled": row.get::<i64, _>("enabled") != 0,
             "preloaded": row.get::<i64, _>("preloaded") != 0,
             "created_at": row.get::<Option<String>, _>("created_at"),
+            "last_sync_notes": row.get::<Option<i64>, _>("last_sync_notes").unwrap_or(0),
+            "last_synced": row.get::<Option<String>, _>("last_synced"),
         })
     }).collect();
 
     Json(json_relays)
 }
+
+// (rest of your routes — add_relay, get_npubs, add_npub, trigger_sync — are unchanged and already perfect)
 
 async fn add_relay(State(pool): State<SqlitePool>, Json(req): Json<AddRelayRequest>) -> Json<ApiResponse> {
     let result = sqlx::query("INSERT INTO upstream_relays (url, name) VALUES (?, ?)")
@@ -139,7 +171,6 @@ async fn add_relay(State(pool): State<SqlitePool>, Json(req): Json<AddRelayReque
         .bind(&req.name)
         .execute(&pool)
         .await;
-
     match result {
         Ok(_) => Json(ApiResponse { success: true, message: "Relay added successfully".to_string() }),
         Err(e) => Json(ApiResponse { success: false, message: format!("Failed to add relay: {}", e) }),
@@ -173,7 +204,6 @@ async fn add_npub(State(pool): State<SqlitePool>, Json(req): Json<AddNpubRequest
         .bind(&req.label)
         .execute(&pool)
         .await;
-
     match result {
         Ok(_) => Json(ApiResponse { success: true, message: "Npub added successfully".to_string() }),
         Err(e) => Json(ApiResponse { success: false, message: format!("Failed to add npub: {}", e) }),
@@ -199,6 +229,8 @@ async fn main() {
         .run(&pool)
         .await
         .expect("Failed to run database migrations");
+
+    ensure_relay_stats_columns(&pool).await;   // ← automatic migration
 
     println!("Database connected and migrations applied.");
 
