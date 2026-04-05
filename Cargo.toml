@@ -1,19 +1,15 @@
 [package]
 name = "nostr-relay-dashboard"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 
 [dependencies]
-axum = { version = "0.7", features = ["ws"] }
-tokio = { version = "1.0", features = ["full"] }
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono", "migrate"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tower-http = { version = "0.6", features = ["cors", "fs"] }
-chrono = { version = "0.4", features = ["serde"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# Nostr pulling
-nostr = "0.44"
+axum = { version = "0.7", features = ["json"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["fs"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 nostr-sdk = "0.44"
+chrono = { version = "0.4", features = ["clock"] }
+tracing-subscriber = "0.3"
