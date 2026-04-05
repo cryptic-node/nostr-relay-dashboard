@@ -1,84 +1,25 @@
-### Nostr Relay Dashboard
+# Nostr Relay Dashboard
 
-**Your personal Nostr backup & aggregator** — clean, fast, and built in Rust.
+**Personal backup & aggregator • Version 1.0**  
+**Dev Team:** cryptic-node & SuperGrok • Powered by Rust
 
----
+A clean, self-hosted Nostr relay dashboard that lets you pull and store events from upstream relays for any number of npubs. Built as a passion project to improve on the Umbrel three-panel layout with manual relay control, multi-npub support, readable event previews, backup/restore, and more.
 
+## Features (v1.0)
 
-### ✨ v1 – Mission (Nearly) Accomplished
-
-**Created by [cryptic-node](https://github.com/cryptic-node)**
-
-**Massive thanks to SuperGrok** — the absolute legend who led the entire technical build, debugged every single Rust error with me in real time, turned a half-broken project into a beautiful working dashboard, and never once complained while I threw problems at him. This thing literally would not exist without him. 🫡
-
-*(In comically small print: We also borrowed some early scaffolding ideas from Replit + ChatGPT — they got us to the starting line, SuperGrok took us across the finish line at warp speed.)*
-
----
-
-### Features
-- Preloaded popular relays (Damus, nos.lol, Nostr Wine, Snort, etc.)
-- Add as many npubs as you want
-- One-click "Sync Now" — pulls events and stores them locally (deduplicated)
-- Live dashboard with real-time recent events pane
-- SQLite backend — zero external services
-
-### Goals for Next Iteration v1
-- Add detail to relays connected: number of events synced by relay, connection uptime, server details
-- Add detail to npubs stored: number of events synced by npub, number of relays found with events from npub, most recent sync date and time
-- Fix Recent Events display, currently still blank but displays npub label at the top
-- Add detail to sync progress and finished messages
-- Add option to create backup file or restore from backup file.
-
-### Goals for v2
-- Add settings (daily sync or manual, change port, change language, change timezone)
-- Add preferences (select/deselect event types to sort Recent Events window, default npub displayed, day mode/night mode/use system settings, displayed metrics)
-- Improved logging and displayed metrics
-- Detailed relay connection statuses
-- Improved looks
-
-Author: cryptic-node (& Grok)
-
-NOSTR nPub: npub1axr49qkexxmcm0g2tac3uawzmk59gaupsgy5fw5sfuscumq79h9qjh47gn
-
-Lightning Address: orchidcheetah29@primal.net
-
-All donations go to paying for Grok and Digital Ocean Basic Droplet to continue working on it.
-
-
-
-
-### Quick Start
-```bash
-cargo run
-
-ALPHA -- # Nostr Relay Dashboard
-
-Your personal Nostr relay with a clean dashboard to:
-- Manage upstream public relays (5 popular free ones preloaded)
-- Add multiple npubs to monitor
-- Pull/sync events from upstream relays into your local database
-
-## Features
-- Umbrel-style web dashboard
-- Preloaded relays: Damus, nos.lol, Nostr Wine, Snort, Mutiny
-- Add/remove npubs
-- "Sync Now" button that fetches events signed by your npubs
-- Events are deduplicated and stored locally
+- **Three-panel layout** – Upstream relays (left), monitored npubs (center), recent events (right)
+- **Human-readable events** – Text notes show actual content; contacts show “Updated contact list (X following)”
+- **Full backup & restore** – Everything (relays, npubs, settings, events) saved as NDJSON
+- **Nightly auto-sync** – Toggleable midnight sync (00:00 local time)
+- **Manual sync button** – Pull fresh events anytime
+- **Download Logs** – One-click server log export for debugging
+- **Restart Server** – One-click graceful restart request
+- **SQLite persistence** – All data survives restarts and upgrades
+- **Mobile-friendly dark UI** with Tailwind + Font Awesome
 
 ## Quick Start
-1. `cargo run`
-2. Open http://your-server-ip:8080
-3. Add your npub(s)
-4. Click **Sync Now**
 
-Your local relay will become a backup/aggregator for the npubs you monitor.
-
-## Project Structure
-- `src/main.rs` — entry point + Axum server
-- `src/sync.rs` — logic to pull events using nostr-sdk
-- `src/routes.rs` — API handlers
-- `public/index.html` — the dashboard UI (coming next)
-- Database: `nostr_relay.db` (SQLite)
-
-Built with Rust, Axum, sqlx, and nostr-sdk.
-
+1. Clone the repo:
+   ```bash
+   git clone https://github.com/cryptic-node/nostr-relay-dashboard.git
+   cd nostr-relay-dashboard
