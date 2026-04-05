@@ -69,7 +69,7 @@
                 <i class="fas fa-sync"></i> Sync Now — Pull Events from Upstream
             </button>
         </div>
-        <div id="status" class="mt-6 text-center text-green-400 font-medium"></div>
+        <div id="status" class="mt-6 text-center text-green-400 font-medium min-h-[28px]"></div>
     </div>
 
     <script>
@@ -82,13 +82,19 @@
 
             document.getElementById('relays-list').innerHTML = relays.map(r => `
                 <div class="bg-zinc-900 rounded-xl p-4 flex justify-between items-center group">
-                    <div><div class="font-mono text-sm text-blue-400">${r.url}</div><div class="text-zinc-400 text-xs">${r.name || ''}</div></div>
+                    <div>
+                        <div class="font-mono text-sm text-blue-400">${r.url}</div>
+                        <div class="text-zinc-400 text-xs">${r.name || ''}</div>
+                    </div>
                     <button onclick="deleteRelay(${r.id}); event.stopImmediatePropagation();" class="text-red-400 hover:text-red-500"><i class="fas fa-trash"></i></button>
                 </div>`).join('');
 
             document.getElementById('npubs-list').innerHTML = npubs.map(n => `
                 <div onclick="selectNpub('${n.npub}', '${n.label || ''}')" class="bg-zinc-900 hover:bg-zinc-800 cursor-pointer rounded-xl p-4 transition-all flex justify-between items-center ${selectedNpub === n.npub ? 'ring-2 ring-purple-500' : ''}">
-                    <div><div class="font-mono text-sm break-all">${n.npub}</div>${n.label ? `<div class="text-green-400 text-xs">${n.label}</div>` : ''}</div>
+                    <div>
+                        <div class="font-mono text-sm break-all">${n.npub}</div>
+                        ${n.label ? `<div class="text-green-400 text-xs">${n.label}</div>` : ''}
+                    </div>
                     <button onclick="deleteNpub(${n.id}); event.stopImmediatePropagation();" class="text-red-400 hover:text-red-500"><i class="fas fa-trash"></i></button>
                 </div>`).join('');
 
@@ -98,53 +104,97 @@
 
         window.selectNpub = async function(npub, label) {
             selectedNpub = npub;
-            document.getElementById('selected-npub').textContent = label || npub.substring(0,12) + '...';
+            document.getElementById('selected-npub').textContent = label || npub.substring(0, 12) + '...';
+
             const res = await fetch(`/api/events?npub=${npub}`);
             const events = await res.json();
             const container = document.getElementById('events-list');
-            document.getElementById('no-events').classList.toggle('hidden', events.length > 0);
+            const noEvents = document.getElementById('no-events');
+
+            noEvents.classList.toggle('hidden', events.length > 0);
             container.innerHTML = events.map(e => `
                 <div class="bg-zinc-900 rounded-xl p-4 text-sm">
                     <div class="flex justify-between text-xs mb-2">
                         <span class="bg-zinc-700 px-2 py-1 rounded">${e.kind_name}</span>
                         <span class="text-zinc-400">${e.created_at}</span>
                     </div>
-                    <div class="text-zinc-300">${e.content}</div>
+                    <div class="text-zinc-300 whitespace-pre-wrap">${e.content}</div>
                 </div>`).join('');
         };
 
         window.addRelay = async function() {
             const url = document.getElementById('relay-url').value.trim();
-            const name = document.getElementById('relay-name').value.trim();
+            const name = document.getElementById('relay-name').value.trim() || null;
             if (!url) return;
-            await fetch('/api/relays', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url, name: name||null})});
-            document.getElementById('relay-url').value = '';
-            document.getElementById('relay-name').value = '';
-            loadData();
+            const res = await fetch('/api/relays', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url, name })
+            });
+            const data = await res.json();
+            document.getElementById('status').innerHTML = data.message;
+            if (data.success) {
+                loadData();
+                document.getElementById('relay-url').value = '';
+                document.getElementById('relay-name').value = '';
+            }
         };
 
         window.addNpub = async function() {
             const npub = document.getElementById('npub-input').value.trim();
-            const label = document.getElementById('label-input').value.trim();
+            const label = document.getElementById('label-input').value.trim() || null;
             if (!npub) return;
-            await fetch('/api/npubs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({npub, label: label||null})});
-            document.getElementById('npub-input').value = '';
-            document.getElementById('label-input').value = '';
-            loadData();
+            const res = await fetch('/api/npubs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ npub, label })
+            });
+            const data = await res.json();
+            document.getElementById('status').innerHTML = data.message;
+            if (data.success) {
+                loadData();
+                document.getElementById('npub-input').value = '';
+                document.getElementById('label-input').value = '';
+            }
         };
 
-        window.deleteRelay = async function(id) { if (confirm('Delete relay?')) { await fetch(`/api/relays/${id}`, {method:'DELETE'}); loadData(); } };
-        window.deleteNpub = async function(id) { if (confirm('Delete npub?')) { await fetch(`/api/npubs/${id}`, {method:'DELETE'}); loadData(); } };
+        window.deleteRelay = async function(id) {
+            if (!confirm('Delete this relay?')) return;
+            const res = await fetch(`/api/relays/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            document.getElementById('status').innerHTML = data.message;
+            if (data.success) loadData();
+        };
+
+        window.deleteNpub = async function(id) {
+            if (!confirm('Delete this npub?')) return;
+            const res = await fetch(`/api/npubs/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            document.getElementById('status').innerHTML = data.message;
+            if (data.success) {
+                if (selectedNpub) selectedNpub = null;
+                loadData();
+                document.getElementById('events-list').innerHTML = '';
+                document.getElementById('no-events').classList.remove('hidden');
+            }
+        };
 
         window.triggerSync = async function() {
-            const status = document.getElementById('status');
-            status.textContent = 'Syncing...';
-            await fetch('/api/sync', {method:'POST'});
-            status.textContent = 'Sync finished!';
-            loadData();
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `<i class="fas fa-spinner animate-spin"></i> Syncing...`;
+            const res = await fetch('/api/sync', { method: 'POST' });
+            const data = await res.json();
+            statusEl.innerHTML = data.message;
+            if (data.success) {
+                loadData();
+                if (selectedNpub) {
+                    selectNpub(selectedNpub, document.getElementById('selected-npub').textContent);
+                }
+            }
         };
 
-        window.onload = loadData;
+        // Auto-load on page open
+        document.addEventListener('DOMContentLoaded', loadData);
     </script>
 </body>
 </html>
