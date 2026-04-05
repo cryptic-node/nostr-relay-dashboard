@@ -49,7 +49,7 @@ async fn get_events(Query(params): Query<std::collections::HashMap<String, Strin
 
     let events = sqlx::query(
         "SELECT id, kind, content, tags, strftime('%Y-%m-%d %H:%M:%S', created_at, 'unixepoch') AS created_at_formatted 
-         FROM events WHERE pubkey = ? ORDER BY created_at DESC LIMIT 10"
+         FROM events WHERE pubkey = ? ORDER BY created_at DESC LIMIT 30"
     ).bind(pubkey_hex).fetch_all(&pool).await.unwrap_or_default();
 
     let previews: Vec<EventPreview> = events.into_iter().map(|row| {
@@ -75,43 +75,22 @@ async fn get_events(Query(params): Query<std::collections::HashMap<String, Strin
 
 async fn backup(State(pool): State<SqlitePool>) -> impl IntoResponse {
     let mut ndjson = String::new();
-
     let relays = sqlx::query("SELECT url, name, enabled, preloaded FROM upstream_relays").fetch_all(&pool).await.unwrap_or_default();
-    for row in relays {
-        let obj = serde_json::json!({ "type": "relay", "url": row.get::<String, _>("url"), "name": row.get::<Option<String>, _>("name"), "enabled": row.get::<i64, _>("enabled") != 0, "preloaded": row.get::<i64, _>("preloaded") != 0 });
-        ndjson.push_str(&obj.to_string()); ndjson.push('\n');
-    }
-
+    for row in relays { let obj = serde_json::json!({ "type": "relay", "url": row.get::<String, _>("url"), "name": row.get::<Option<String>, _>("name"), "enabled": row.get::<i64, _>("enabled") != 0, "preloaded": row.get::<i64, _>("preloaded") != 0 }); ndjson.push_str(&obj.to_string()); ndjson.push('\n'); }
     let npubs = sqlx::query("SELECT npub, label FROM monitored_npubs").fetch_all(&pool).await.unwrap_or_default();
-    for row in npubs {
-        let obj = serde_json::json!({ "type": "npub", "npub": row.get::<String, _>("npub"), "label": row.get::<Option<String>, _>("label") });
-        ndjson.push_str(&obj.to_string()); ndjson.push('\n');
-    }
-
+    for row in npubs { let obj = serde_json::json!({ "type": "npub", "npub": row.get::<String, _>("npub"), "label": row.get::<Option<String>, _>("label") }); ndjson.push_str(&obj.to_string()); ndjson.push('\n'); }
     let settings = sqlx::query("SELECT key, value FROM settings").fetch_all(&pool).await.unwrap_or_default();
-    for row in settings {
-        let obj = serde_json::json!({ "type": "setting", "key": row.get::<String, _>("key"), "value": row.get::<String, _>("value") });
-        ndjson.push_str(&obj.to_string()); ndjson.push('\n');
-    }
-
+    for row in settings { let obj = serde_json::json!({ "type": "setting", "key": row.get::<String, _>("key"), "value": row.get::<String, _>("value") }); ndjson.push_str(&obj.to_string()); ndjson.push('\n'); }
     let events = sqlx::query("SELECT id, pubkey, kind, content, created_at, tags, sig FROM events").fetch_all(&pool).await.unwrap_or_default();
-    for row in events {
-        let tags_str: String = row.get("tags");
-        let tags: Vec<Vec<String>> = serde_json::from_str(&tags_str).unwrap_or_default();
-        let obj = serde_json::json!({ "type": "event", "id": row.get::<String, _>("id"), "pubkey": row.get::<String, _>("pubkey"), "kind": row.get::<i64, _>("kind") as u16, "content": row.get::<String, _>("content"), "created_at": row.get::<i64, _>("created_at"), "tags": tags, "sig": row.get::<String, _>("sig") });
-        ndjson.push_str(&obj.to_string()); ndjson.push('\n');
-    }
-
+    for row in events { let tags_str: String = row.get("tags"); let tags: Vec<Vec<String>> = serde_json::from_str(&tags_str).unwrap_or_default(); let obj = serde_json::json!({ "type": "event", "id": row.get::<String, _>("id"), "pubkey": row.get::<String, _>("pubkey"), "kind": row.get::<i64, _>("kind") as u16, "content": row.get::<String, _>("content"), "created_at": row.get::<i64, _>("created_at"), "tags": tags, "sig": row.get::<String, _>("sig") }); ndjson.push_str(&obj.to_string()); ndjson.push('\n'); }
     ([(axum::http::header::CONTENT_TYPE, "application/x-ndjson")], ndjson)
 }
 
 async fn restore(State(pool): State<SqlitePool>, Json(req): Json<RestoreRequest>) -> Json<ApiResponse> {
     let mut relays_restored = 0usize; let mut npubs_restored = 0usize; let mut events_restored = 0usize; let mut settings_restored = 0usize;
-
     let _ = sqlx::query("DELETE FROM upstream_relays").execute(&pool).await;
     let _ = sqlx::query("DELETE FROM monitored_npubs").execute(&pool).await;
     let _ = sqlx::query("DELETE FROM settings").execute(&pool).await;
-
     for line in req.ndjson.lines() {
         let line = line.trim();
         if line.is_empty() { continue; }
@@ -119,33 +98,28 @@ async fn restore(State(pool): State<SqlitePool>, Json(req): Json<RestoreRequest>
             if let Some(t) = json.get("type").and_then(|v| v.as_str()) {
                 match t {
                     "relay" => { let url = json["url"].as_str().unwrap_or_default(); let name = json["name"].as_str(); let enabled = json["enabled"].as_bool().unwrap_or(true); let preloaded = json["preloaded"].as_bool().unwrap_or(false);
-                        let _ = sqlx::query("INSERT INTO upstream_relays (url, name, enabled, preloaded) VALUES (?, ?, ?, ?)").bind(url).bind(name).bind(enabled as i64).bind(preloaded as i64).execute(&pool).await;
-                        relays_restored += 1; }
+                        let _ = sqlx::query("INSERT INTO upstream_relays (url, name, enabled, preloaded) VALUES (?, ?, ?, ?)").bind(url).bind(name).bind(enabled as i64).bind(preloaded as i64).execute(&pool).await; relays_restored += 1; }
                     "npub" => { let npub = json["npub"].as_str().unwrap_or_default(); let label = json["label"].as_str();
-                        let _ = sqlx::query("INSERT INTO monitored_npubs (npub, label) VALUES (?, ?)").bind(npub).bind(label).execute(&pool).await;
-                        npubs_restored += 1; }
+                        let _ = sqlx::query("INSERT INTO monitored_npubs (npub, label) VALUES (?, ?)").bind(npub).bind(label).execute(&pool).await; npubs_restored += 1; }
                     "setting" => { let key = json["key"].as_str().unwrap_or_default(); let value = json["value"].as_str().unwrap_or_default();
-                        let _ = sqlx::query("INSERT INTO settings (key, value) VALUES (?, ?)").bind(key).bind(value).execute(&pool).await;
-                        settings_restored += 1; }
+                        let _ = sqlx::query("INSERT INTO settings (key, value) VALUES (?, ?)").bind(key).bind(value).execute(&pool).await; settings_restored += 1; }
                     "event" => { if let Ok(event) = NostrEvent::from_json(line) {
                         let _ = sqlx::query("INSERT OR IGNORE INTO events (id, pubkey, kind, content, created_at, tags, sig) VALUES (?, ?, ?, ?, ?, ?, ?)")
                             .bind(event.id.to_hex()).bind(event.pubkey.to_hex()).bind(event.kind.as_u16() as i64)
                             .bind(&event.content).bind(event.created_at.as_secs() as i64)
                             .bind(serde_json::to_string(&event.tags).unwrap_or_default()).bind(event.sig.to_string())
-                            .execute(&pool).await;
-                        events_restored += 1; } }
+                            .execute(&pool).await; events_restored += 1; } }
                     _ => {}
                 }
             }
         }
     }
-
     let msg = format!("✅ Restored {} relays, {} npubs, {} settings, and {} events successfully!", relays_restored, npubs_restored, settings_restored, events_restored);
     Json(ApiResponse { success: true, message: msg })
 }
 
 async fn get_logs() -> impl IntoResponse {
-    let log_text = "=== Nostr Relay Dashboard Logs ===\n\nFull real-time logs appear in the terminal where you ran 'cargo run'.\n\nThis file is provided for easy sharing when debugging.\n\nDashboard is running perfectly!";
+    let log_text = "=== Nostr Relay Dashboard Logs ===\n\nFull real-time logs appear in the terminal.\n\nDashboard is running perfectly!";
     ([(axum::http::header::CONTENT_TYPE, "text/plain")], log_text)
 }
 
