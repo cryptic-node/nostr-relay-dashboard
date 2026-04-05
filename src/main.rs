@@ -49,7 +49,7 @@ async fn get_events(Query(params): Query<std::collections::HashMap<String, Strin
 
     let events = sqlx::query(
         "SELECT id, kind, content, tags, strftime('%Y-%m-%d %H:%M:%S', created_at, 'unixepoch') AS created_at_formatted 
-         FROM events WHERE pubkey = ? ORDER BY created_at DESC LIMIT 30"
+         FROM events WHERE pubkey = ? ORDER BY created_at DESC LIMIT 100"
     ).bind(pubkey_hex).fetch_all(&pool).await.unwrap_or_default();
 
     let previews: Vec<EventPreview> = events.into_iter().map(|row| {
