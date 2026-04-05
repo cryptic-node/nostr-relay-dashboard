@@ -25,7 +25,7 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Upstream Relays (unchanged) -->
+            <!-- Upstream Relays -->
             <div class="card rounded-2xl p-6">
                 <div class="flex justify-between mb-4">
                     <h2 class="text-2xl font-semibold">Upstream Relays</h2>
@@ -39,7 +39,7 @@
                 </div>
             </div>
 
-            <!-- Monitored Npubs (unchanged) -->
+            <!-- Monitored Npubs -->
             <div class="card rounded-2xl p-6">
                 <div class="flex justify-between mb-4">
                     <h2 class="text-2xl font-semibold">Monitored Npubs</h2>
@@ -53,7 +53,7 @@
                 </div>
             </div>
 
-            <!-- Recent Events — NOW BEAUTIFUL -->
+            <!-- Recent Events -->
             <div class="card rounded-2xl p-6">
                 <div class="flex justify-between mb-4">
                     <h2 class="text-2xl font-semibold">Recent Events</h2>
@@ -140,7 +140,75 @@
                 </div>`).join('');
         };
 
-        // Backup
+        window.addRelay = async function() {
+            const url = document.getElementById('relay-url').value.trim();
+            const name = document.getElementById('relay-name').value.trim() || null;
+            if (!url) return alert("Please enter a relay URL");
+            const res = await fetch('/api/relays', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url, name })
+            });
+            const data = await res.json();
+            document.getElementById('status').innerHTML = data.success ? `<span class="text-green-400">${data.message}</span>` : data.message;
+            if (data.success) {
+                loadData();
+                document.getElementById('relay-url').value = '';
+                document.getElementById('relay-name').value = '';
+            }
+        };
+
+        window.addNpub = async function() {
+            const npub = document.getElementById('npub-input').value.trim();
+            const label = document.getElementById('label-input').value.trim() || null;
+            if (!npub) return alert("Please enter an npub");
+            const res = await fetch('/api/npubs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ npub, label })
+            });
+            const data = await res.json();
+            document.getElementById('status').innerHTML = data.success ? `<span class="text-green-400">${data.message}</span>` : data.message;
+            if (data.success) {
+                loadData();
+                document.getElementById('npub-input').value = '';
+                document.getElementById('label-input').value = '';
+            }
+        };
+
+        window.deleteRelay = async function(id) {
+            if (!confirm('Delete this relay?')) return;
+            const res = await fetch(`/api/relays/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            document.getElementById('status').innerHTML = data.success ? `<span class="text-green-400">${data.message}</span>` : data.message;
+            if (data.success) loadData();
+        };
+
+        window.deleteNpub = async function(id) {
+            if (!confirm('Delete this npub?')) return;
+            const res = await fetch(`/api/npubs/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            document.getElementById('status').innerHTML = data.success ? `<span class="text-green-400">${data.message}</span>` : data.message;
+            if (data.success) {
+                selectedNpub = null;
+                loadData();
+                document.getElementById('events-list').innerHTML = '';
+                document.getElementById('no-events').classList.remove('hidden');
+            }
+        };
+
+        window.triggerSync = async function() {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `<i class="fas fa-spinner animate-spin"></i> Syncing...`;
+            const res = await fetch('/api/sync', { method: 'POST' });
+            const data = await res.json();
+            statusEl.innerHTML = `<span class="text-green-400">${data.message}</span>`;
+            if (data.success) {
+                loadData();
+                if (selectedNpub) selectNpub(selectedNpub, document.getElementById('selected-npub').textContent);
+            }
+        };
+
         window.doBackup = async function() {
             const statusEl = document.getElementById('status');
             statusEl.innerHTML = 'Downloading backup...';
@@ -156,7 +224,6 @@
             statusEl.innerHTML = '✅ Backup downloaded!';
         };
 
-        // Restore
         window.handleRestoreFile = async function(input) {
             const file = input.files[0];
             if (!file) return;
@@ -174,10 +241,8 @@
                 loadData();
                 if (selectedNpub) selectNpub(selectedNpub, document.getElementById('selected-npub').textContent);
             }
-            input.value = ''; // reset input
+            input.value = '';
         };
-
-        // (rest of your functions — addRelay, addNpub, deleteRelay, deleteNpub, triggerSync — are unchanged, just keep them from the previous version)
 
         document.addEventListener('DOMContentLoaded', loadData);
     </script>
