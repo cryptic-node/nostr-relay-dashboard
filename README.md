@@ -23,3 +23,28 @@ A clean, self-hosted Nostr relay dashboard that lets you pull and store events f
    ```bash
    git clone https://github.com/cryptic-node/nostr-relay-dashboard.git
    cd nostr-relay-dashboard
+
+2. Build & run:
+cargo run
+Open http://your-server-ip:8080
+Add relays and npubs → hit Sync Now → enjoy your personal Nostr archive.
+
+Version 2.0 Goals (Roadmap)
+
+Custom sync schedule (choose any time instead of only midnight)
+Infinite scroll / pagination for the Recent Events pane
+Search & filter events by kind, date, or keyword
+Profile metadata preview (show name/avatar for npubs)
+Zap & reaction summaries
+Optional Lightning address / NIP-57 zap support
+Docker + Umbrel app manifest for one-click install
+Optional public read-only mode
+
+Credits
+Huge thanks to SuperGrok for the tireless Rust guidance, error fixing, and feature brainstorming that made this possible.
+Built with passion by cryptic-node — because the wheel sometimes deserves a fresh set of rims.
+
+Star the repo if you find it useful!
+Feedback, issues, and pull requests are always welcome.
+
+cryptic-node npub: npub1axr49qkexxmcm0g2tac3uawzmk59gaupsgy5fw5sfuscumq79h9qjh47gn
