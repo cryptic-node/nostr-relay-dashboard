@@ -27,7 +27,9 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
         return Ok("No enabled upstream relays. Add some in the dashboard!".to_string());
     }
 
-    println!("🔄 Starting sync — {} npubs from {} relays...", npubs.len(), relays.len());
+    let num_relays = relays.len();   // capture length BEFORE we move relays
+
+    println!("🔄 Starting sync — {} npubs from {} relays...", npubs.len(), num_relays);
 
     let mut total_inserted = 0usize;
 
@@ -65,7 +67,6 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
             match client.fetch_events(filter, Duration::from_secs(20)).await {
                 Ok(events) => {
                     let num_fetched = events.len();
-                    let mut inserted_count = 0;
 
                     for event in events {
                         let inserted = sqlx::query(
@@ -85,7 +86,6 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
                         .is_ok();
 
                         if inserted {
-                            inserted_count += 1;
                             total_inserted += 1;
                             relay_inserted += 1;
                         }
@@ -112,7 +112,7 @@ pub async fn sync_npubs(pool: SqlitePool) -> Result<String, String> {
     }
 
     let msg = format!("🎉 Sync finished! Inserted {} new events from {} npubs across {} relays.", 
-                      total_inserted, npubs.len(), relays.len());
+                      total_inserted, npubs.len(), num_relays);
     println!("{}", msg);
     Ok(msg)
 }
