@@ -11,6 +11,7 @@
         .card { background: #1f1f1f; }
         .trash-btn { transition: all 0.2s; }
         .trash-btn:hover { transform: scale(1.15); color: #ef4444 !important; }
+        .scroll-list { max-height: 420px; overflow-y: auto; scrollbar-width: thin; }
     </style>
 </head>
 <body class="text-white">
@@ -31,9 +32,9 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="text-sm font-medium">Frequency</span>
-                    <select id="frequency-select" onchange="updateFrequency()" class="bg-zinc-800 text-white rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <select id="frequency-select" class="bg-zinc-800 text-white rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
                         <option value="hourly">Hourly</option>
-                        <option value="nightly">Nightly</option>
+                        <option value="nightly" selected>Nightly</option>
                     </select>
                 </div>
                 <div class="flex items-center gap-2">
@@ -45,12 +46,12 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Upstream Relays -->
-            <div class="card rounded-3xl p-6">
+            <div class="card rounded-3xl p-6 flex flex-col">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold">Upstream Relays</h2>
                     <span id="relay-count" class="bg-zinc-800 text-xs px-3 py-1 rounded-full">0 relays</span>
                 </div>
-                <div id="relays-list" class="space-y-3 max-h-[420px] overflow-y-auto pr-2"></div>
+                <div id="relays-list" class="scroll-list flex-1 space-y-3 pr-2"></div>
                 <div class="mt-6 flex gap-2">
                     <input id="relay-url" placeholder="wss://..." class="flex-1 bg-zinc-900 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <input id="relay-name" placeholder="Name" class="w-44 bg-zinc-900 rounded-2xl px-5 py-4 focus:outline-none">
@@ -59,12 +60,12 @@
             </div>
 
             <!-- Monitored Npubs -->
-            <div class="card rounded-3xl p-6">
+            <div class="card rounded-3xl p-6 flex flex-col">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold">Monitored Npubs</h2>
                     <span id="npub-count" class="bg-zinc-800 text-xs px-3 py-1 rounded-full">0 npubs</span>
                 </div>
-                <div id="npubs-list" class="space-y-3 max-h-[420px] overflow-y-auto pr-2"></div>
+                <div id="npubs-list" class="scroll-list flex-1 space-y-3 pr-2"></div>
                 <div class="mt-6 flex gap-2">
                     <input id="npub-input" placeholder="npub1..." class="flex-1 bg-zinc-900 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono">
                     <input id="label-input" placeholder="Label (optional)" class="w-44 bg-zinc-900 rounded-2xl px-5 py-4 focus:outline-none">
@@ -73,13 +74,13 @@
             </div>
 
             <!-- Recent Events -->
-            <div class="card rounded-3xl p-6">
+            <div class="card rounded-3xl p-6 flex flex-col">
                 <div class="flex justify-between items-baseline mb-4">
                     <h2 class="text-2xl font-semibold">Recent Events</h2>
                     <span id="selected-label" class="text-purple-400 font-medium"></span>
                 </div>
-                <div id="events-list" class="space-y-4 max-h-[460px] overflow-y-auto pr-2"></div>
-                <div id="no-events-msg" class="hidden text-zinc-500 text-center py-20">Select an npub above to view its notes and events</div>
+                <div id="events-list" class="scroll-list flex-1 space-y-4 pr-2"></div>
+                <div id="no-events-msg" class="hidden text-zinc-500 text-center py-20 flex-1 flex items-center justify-center">Select an npub above to view its notes and events</div>
             </div>
         </div>
 
@@ -107,44 +108,53 @@
         let currentSelectedNpub = null;
 
         async function loadData() {
-            const [relaysRes, npubsRes] = await Promise.all([fetch('/api/relays'), fetch('/api/npubs')]);
-            const relays = await relaysRes.json();
-            const npubs = await npubsRes.json();
+            try {
+                const [relaysRes, npubsRes] = await Promise.all([
+                    fetch('/api/relays'),
+                    fetch('/api/npubs')
+                ]);
+                const relays = await relaysRes.json();
+                const npubs = await npubsRes.json();
 
-            document.getElementById('relays-list').innerHTML = relays.map(r => `
-                <div class="flex justify-between items-center bg-zinc-900 hover:bg-zinc-800 p-4 rounded-2xl group">
-                    <div>
-                        <div class="font-mono text-sm text-blue-300">${r.url}</div>
-                        ${r.name ? `<div class="text-xs text-zinc-400">${r.name}</div>` : ''}
+                // Relays
+                document.getElementById('relays-list').innerHTML = relays.map(r => `
+                    <div class="flex justify-between items-center bg-zinc-900 hover:bg-zinc-800 p-4 rounded-2xl group">
+                        <div>
+                            <div class="font-mono text-sm text-blue-300">${r.url}</div>
+                            ${r.name ? `<div class="text-xs text-zinc-400">${r.name}</div>` : ''}
+                        </div>
+                        <button onclick="deleteRelay(${r.id}); event.stopImmediatePropagation()" class="trash-btn text-red-400">
+                            <i class="fas fa-trash-can"></i>
+                        </button>
                     </div>
-                    <button onclick="deleteRelay(${r.id}); event.stopImmediatePropagation()" class="trash-btn text-red-400">
-                        <i class="fas fa-trash-can"></i>
-                    </button>
-                </div>
-            `).join('');
+                `).join('');
 
-            document.getElementById('npubs-list').innerHTML = npubs.map(n => {
-                const selected = currentSelectedNpub === n.npub ? 'ring-2 ring-purple-500 bg-zinc-800' : '';
-                return `
-                <div onclick="selectNpub('${n.npub}', '${n.label || ''}')" class="cursor-pointer bg-zinc-900 hover:bg-zinc-800 p-4 rounded-2xl transition-all ${selected}">
-                    <div class="font-mono text-sm break-all">${n.npub}</div>
-                    ${n.label ? `<div class="text-emerald-400 text-xs mt-1">${n.label}</div>` : ''}
-                    <div class="text-zinc-400 text-xs mt-1">${n.note_count || 0} notes synced</div>
-                </div>`;
-            }).join('');
+                // Npubs with note count + purple border
+                document.getElementById('npubs-list').innerHTML = npubs.map(n => {
+                    const isSelected = currentSelectedNpub === n.npub ? 'ring-2 ring-purple-500 bg-zinc-800' : '';
+                    return `
+                    <div onclick="selectNpub('${n.npub}', '${n.label || ''}')" class="cursor-pointer bg-zinc-900 hover:bg-zinc-800 p-4 rounded-2xl transition-all ${isSelected}">
+                        <div class="font-mono text-sm break-all">${n.npub}</div>
+                        ${n.label ? `<div class="text-emerald-400 text-xs mt-1">${n.label}</div>` : ''}
+                        <div class="text-zinc-400 text-xs mt-1">${n.note_count || 0} notes synced</div>
+                    </div>`;
+                }).join('');
 
-            document.getElementById('relay-count').textContent = `${relays.length} relays`;
-            document.getElementById('npub-count').textContent = `${npubs.length} npubs`;
+                document.getElementById('relay-count').textContent = `${relays.length} relays`;
+                document.getElementById('npub-count').textContent = `${npubs.length} npubs`;
+            } catch (e) {
+                console.error("Load error:", e);
+            }
         }
 
         async function selectNpub(npub, label) {
             currentSelectedNpub = npub;
-            document.getElementById('selected-label').textContent = label || npub.slice(0,12)+'...';
+            document.getElementById('selected-label').textContent = label || npub.slice(0, 12) + '...';
 
             const res = await fetch(`/api/events?npub=${encodeURIComponent(npub)}`);
             let events = await res.json();
 
-            // Real notes (kind=1) first, contacts (kind=3) last
+            // Real notes (kind=1) first, contacts (kind=3) pushed to bottom
             events.sort((a, b) => {
                 if (a.kind === 1 && b.kind !== 1) return -1;
                 if (a.kind !== 1 && b.kind === 1) return 1;
@@ -159,50 +169,110 @@
             if (events.length === 0) {
                 container.innerHTML = '';
                 noMsg.classList.remove('hidden');
-                return;
-            }
-            noMsg.classList.add('hidden');
-            container.innerHTML = events.map(e => `
-                <div class="bg-zinc-900 rounded-2xl p-5">
-                    <div class="flex justify-between text-xs mb-3">
-                        <span class="px-3 py-1 rounded-full ${e.kind===1 ? 'bg-purple-900 text-purple-300' : 'bg-zinc-700 text-zinc-400'}">
-                            ${e.kind===1 ? 'Note' : e.kind===3 ? 'Contacts' : 'Event '+e.kind}
-                        </span>
-                        <span class="text-zinc-500">${e.created_at}</span>
+            } else {
+                noMsg.classList.add('hidden');
+                container.innerHTML = events.map(e => `
+                    <div class="bg-zinc-900 rounded-2xl p-5">
+                        <div class="flex justify-between text-xs mb-3">
+                            <span class="px-3 py-1 rounded-full ${e.kind === 1 ? 'bg-purple-900 text-purple-300' : 'bg-zinc-700 text-zinc-400'}">
+                                ${e.kind === 1 ? 'Note' : e.kind === 3 ? 'Contacts' : 'Event ' + e.kind}
+                            </span>
+                            <span class="text-zinc-500">${e.created_at}</span>
+                        </div>
+                        <div class="text-zinc-200 whitespace-pre-wrap">${e.preview || '(no content)'}</div>
                     </div>
-                    <div class="text-zinc-200 whitespace-pre-wrap">${e.preview || '(no content)'}</div>
-                </div>
-            `).join('');
-
-            loadData(); // refresh border
+                `).join('');
+            }
+            loadData(); // refresh borders + counts
         }
 
-        async function addRelay() { /* same as before */ 
+        async function addRelay() {
             const url = document.getElementById('relay-url').value.trim();
             const name = document.getElementById('relay-name').value.trim();
-            if (!url) return;
-            await fetch('/api/relays', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url, name: name||null})});
+            if (!url) return alert("URL required");
+            await fetch('/api/relays', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, name: name || null }) });
             loadData();
         }
-        async function deleteRelay(id) { if(confirm('Delete relay?')) { await fetch(`/api/relays/${id}`,{method:'DELETE'}); loadData(); } }
-        async function addNpub() { /* same as before */ 
+
+        async function deleteRelay(id) {
+            if (!confirm('Delete this relay?')) return;
+            await fetch(`/api/relays/${id}`, { method: 'DELETE' });
+            loadData();
+        }
+
+        async function addNpub() {
             const npub = document.getElementById('npub-input').value.trim();
             const label = document.getElementById('label-input').value.trim();
-            if (!npub) return;
-            await fetch('/api/npubs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({npub, label: label||null})});
+            if (!npub) return alert("npub required");
+            await fetch('/api/npubs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ npub, label: label || null }) });
             loadData();
         }
-        async function triggerSync() { await fetch('/api/sync',{method:'POST'}); loadData(); }
-        async function backupData() { window.location.href = '/api/backup'; }
+
+        async function triggerSync() {
+            const btn = event.target.closest('button');
+            const original = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-spinner animate-spin"></i> Syncing...`;
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/sync', { method: 'POST' });
+                const data = await res.json();
+                alert(data.message || 'Sync finished!');
+            } catch (e) {
+                alert('Sync failed');
+            } finally {
+                btn.innerHTML = original;
+                btn.disabled = false;
+                loadData();
+            }
+        }
+
+        async function backupData() {
+            try {
+                const res = await fetch('/api/backup');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'nostr-backup.ndjson';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('Backup failed');
+            }
+        }
+
         async function restoreData() {
-            const input = document.createElement('input'); input.type='file'; input.accept='.ndjson';
-            input.onchange = async e => { const f=e.target.files[0]; if(!f) return; const fd=new FormData(); fd.append('file',f); await fetch('/api/restore',{method:'POST',body:fd}); loadData(); };
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.ndjson';
+            input.onchange = async e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const form = new FormData();
+                form.append('file', file);
+                await fetch('/api/restore', { method: 'POST', body: form });
+                loadData();
+                alert('Restore complete');
+            };
             input.click();
         }
-        async function downloadLogs() { window.location.href = '/api/logs'; }
-        async function restartServer() { if(confirm('Restart server?')) await fetch('/api/restart',{method:'POST'}); }
-        function toggleAutoSync() { document.getElementById('frequency-select').disabled = !document.getElementById('auto-sync-toggle').checked; }
-        function updateFrequency() { /* backend call if needed */ }
+
+        async function downloadLogs() {
+            window.location.href = '/api/logs';
+        }
+
+        async function restartServer() {
+            if (!confirm('Restart the server?')) return;
+            await fetch('/api/restart', { method: 'POST' });
+            alert('Server restarting...');
+        }
+
+        function toggleAutoSync() {
+            const freq = document.getElementById('frequency-select');
+            freq.disabled = !document.getElementById('auto-sync-toggle').checked;
+        }
 
         window.onload = loadData;
     </script>
