@@ -20,7 +20,7 @@ struct AddNpubRequest { npub: String, label: Option<String> }
 struct AddRelayRequest { url: String, name: Option<String> }
 
 #[derive(Deserialize)]
-struct RestoreRequest { _ndjson: String }  // underscore silences dead_code warning
+struct RestoreRequest { _ndjson: String }
 
 #[derive(Serialize)]
 struct ApiResponse { success: bool, message: String }
@@ -111,7 +111,9 @@ async fn ensure_tables(pool: &SqlitePool) {
         ];
         for (url, name) in preloaded {
             sqlx::query("INSERT OR IGNORE INTO upstream_relays (url, name, enabled, preloaded) VALUES (?, ?, 1, 1)")
-                .bind(url).bind(name).execute(pool).await.unwrap();
+                .bind(url)
+                .bind(name)
+                .execute(pool).await.unwrap();
         }
     }
 }
@@ -172,39 +174,3 @@ async fn get_npubs(State(state): State<Arc<AppState>>) -> Json<Vec<NpubResponse>
 
 async fn get_events(Query(params): Query<HashMap<String, String>>, State(state): State<Arc<AppState>>) -> Json<Vec<EventPreview>> {
     let npub_str = match params.get("npub") { Some(n) => n.clone(), None => return Json(vec![]), };
-    let pubkey = match PublicKey::parse(&npub_str) { Ok(pk) => pk, Err(_) => return Json(vec![]), };
-    let pubkey_hex = pubkey.to_hex();
-
-    let events = sqlx::query(
-        "SELECT id, kind, content, datetime(created_at, 'unixepoch') AS created_at_formatted
-         FROM events WHERE pubkey = ? AND kind = 1 ORDER BY created_at DESC LIMIT 50"
-    )
-    .bind(pubkey_hex)
-    .fetch_all(&state.pool).await.unwrap_or_default();
-
-    let previews: Vec<EventPreview> = events.into_iter().map(|row| {
-        let content: String = row.get("content");
-        let preview = if content.len() > 280 { content.chars().take(280).collect::<String>() + "…" } else { content };
-        EventPreview {
-            id: row.get("id"),
-            kind: row.get::<i64, _>("kind") as u16,
-            kind_name: "Note".to_string(),
-            preview,
-            created_at: row.get("created_at_formatted"),
-        }
-    }).collect();
-    Json(previews)
-}
-
-async fn add_relay(State(state): State<Arc<AppState>>, Json(req): Json<AddRelayRequest>) -> Json<ApiResponse> {
-    let result = sqlx::query("INSERT INTO upstream_relays (url, name, enabled, preloaded) VALUES (?, ?, 1, 0)")
-        .bind(&req.url).bind(&req.name).execute(&state.pool).await;
-    match result {
-        Ok(_) => { log_message(&state, &format!("Relay added: {}", req.url)); Json(ApiResponse { success: true, message: "Relay added".to_string() }) }
-        Err(e) => Json(ApiResponse { success: false, message: e.to_string() }),
-    }
-}
-
-async fn add_npub(State(state): State<Arc<AppState>>, Json(req): Json<AddNpubRequest>) -> Json<ApiResponse> {
-    let result = sqlx::query("INSERT INTO monitored_npubs (npub, label, pubkey_hex) VALUES (?, ?, '')")
-        .bind
