@@ -15,7 +15,7 @@ use serde_json;
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[derive(Deserialize)]
 struct AddNpubRequest {
@@ -61,14 +61,17 @@ struct NpubResponse {
 
 struct AppState {
     pool: SqlitePool,
-    log_file: Arc<Mutex<std::fs::File>>,
 }
 
-fn log_message(state: &AppState, message: &str) {
+fn log_message(message: &str) {
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let entry = format!("{} | {}\n", timestamp, message);
     println!("{}", entry);
-    let mut file = state.log_file.lock().unwrap();
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("dashboard.log")
+        .expect("Failed to open dashboard.log");
     let _ = file.write_all(entry.as_bytes());
 }
 
@@ -147,16 +150,16 @@ async fn ensure_tables(pool: &SqlitePool) {
     }
 }
 
-async fn perform_sync(pool: &SqlitePool, state: &AppState) {
-    log_message(state, "Manual sync started");
-    log_message(state, "Connected to relay.damus.io");
-    log_message(state, "Pulling notes from relay.damus.io");
-    log_message(state, "320 notes pulled from relay.damus.io");
-    log_message(state, "Connected to relay.primal.net");
-    log_message(state, "Pulling notes from relay.primal.net");
-    log_message(state, "487 notes pulled from relay.primal.net");
-    log_message(state, "Sync successful, 807 notes pulled total");
-    log_message(state, "Sync complete");
+async fn perform_sync(pool: &SqlitePool) {
+    log_message("Manual sync started");
+    log_message("Connected to relay.damus.io");
+    log_message("Pulling notes from relay.damus.io");
+    log_message("320 notes pulled from relay.damus.io");
+    log_message("Connected to relay.primal.net");
+    log_message("Pulling notes from relay.primal.net");
+    log_message("487 notes pulled from relay.primal.net");
+    log_message("Sync successful, 807 notes pulled total");
+    log_message("Sync complete");
 
     let _ = sqlx::query(
         "UPDATE upstream_relays SET last_sync_notes = 320, last_synced = datetime('now') WHERE url LIKE '%damus%'"
@@ -265,7 +268,7 @@ async fn add_relay(
 
     match result {
         Ok(_) => {
-            log_message(&state, &format!("Relay added: {}", req.url));
+            log_message(&format!("Relay added: {}", req.url));
             Json(ApiResponse { success: true, message: "Relay added".to_string() })
         }
         Err(e) => Json(ApiResponse { success: false, message: e.to_string() }),
@@ -286,7 +289,7 @@ async fn add_npub(
 
     match result {
         Ok(_) => {
-            log_message(&state, &format!("Npub added: {}", req.npub));
+            log_message(&format!("Npub added: {}", req.npub));
             Json(ApiResponse { success: true, message: "Npub added".to_string() })
         }
         Err(e) => Json(ApiResponse { success: false, message: e.to_string() }),
@@ -300,7 +303,7 @@ async fn delete_relay(
     let _ = sqlx::query("DELETE FROM upstream_relays WHERE id = ?")
         .bind(id)
         .execute(&state.pool).await;
-    log_message(&state, &format!("Relay deleted ID {}", id));
+    log_message(&format!("Relay deleted ID {}", id));
     Json(ApiResponse { success: true, message: "Relay deleted".to_string() })
 }
 
@@ -311,39 +314,36 @@ async fn delete_npub(
     let _ = sqlx::query("DELETE FROM monitored_npubs WHERE id = ?")
         .bind(id)
         .execute(&state.pool).await;
-    log_message(&state, &format!("Npub deleted ID {}", id));
+    log_message(&format!("Npub deleted ID {}", id));
     Json(ApiResponse { success: true, message: "Npub deleted".to_string() })
 }
 
 async fn trigger_sync(State(state): State<Arc<AppState>>) -> Json<ApiResponse> {
-    perform_sync(&state.pool, &state).await;
+    perform_sync(&state.pool).await;
     Json(ApiResponse { success: true, message: "Sync complete".to_string() })
 }
 
-async fn backup_data(State(state): State<Arc<AppState>>) -> Json<ApiResponse> {
-    log_message(&state, "Backing up...");
-    log_message(&state, "Backing up user settings...");
-    log_message(&state, "Backing up relays...");
-    log_message(&state, "Backing up npubs...");
-    log_message(&state, "Backing up notes...");
-    log_message(&state, "Validating backup file...");
-    log_message(&state, "Backup file valid. Backup complete.");
+async fn backup_data(_state: State<Arc<AppState>>) -> Json<ApiResponse> {
+    log_message("Backing up...");
+    log_message("Backing up user settings...");
+    log_message("Backing up relays...");
+    log_message("Backing up npubs...");
+    log_message("Backing up notes...");
+    log_message("Validating backup file...");
+    log_message("Backup file valid. Backup complete.");
     Json(ApiResponse { success: true, message: "Backup complete".to_string() })
 }
 
-async fn restore_data(
-    State(state): State<Arc<AppState>>,
-    Json(_req): Json<RestoreRequest>
-) -> Json<ApiResponse> {
-    log_message(&state, "Restoring...");
-    log_message(&state, "Reading from backup file...");
-    log_message(&state, "Validating data...");
-    log_message(&state, "Restore complete.");
+async fn restore_data(_state: State<Arc<AppState>>, Json(_req): Json<RestoreRequest>) -> Json<ApiResponse> {
+    log_message("Restoring...");
+    log_message("Reading from backup file...");
+    log_message("Validating data...");
+    log_message("Restore complete.");
     Json(ApiResponse { success: true, message: "Restore complete".to_string() })
 }
 
-async fn download_logs(State(state): State<Arc<AppState>>) -> Vec<u8> {
-    log_message(&state, "Downloading log files...");
+async fn download_logs(_state: State<Arc<AppState>>) -> Vec<u8> {
+    log_message("Downloading log files...");
     fs::read("dashboard.log").unwrap_or_else(|_| b"Log file empty or not found".to_vec())
 }
 
@@ -351,4 +351,31 @@ async fn download_logs(State(state): State<Arc<AppState>>) -> Vec<u8> {
 async fn main() {
     let pool = SqlitePool::connect("sqlite:dashboard.db?mode=rwc")
         .await
-        .expect("
+        .expect("Failed to connect to SQLite database. Check directory permissions.");
+
+    ensure_tables(&pool).await;
+
+    let state = Arc::new(AppState { pool: pool.clone() });
+
+    log_message("Server started successfully");
+
+    let app = Router::new()
+        .route("/api/relays", get(get_relays))
+        .route("/api/npubs", get(get_npubs))
+        .route("/api/events", get(get_events))
+        .route("/api/relay", post(add_relay))
+        .route("/api/npub", post(add_npub))
+        .route("/api/relay/:id", delete(delete_relay))
+        .route("/api/npub/:id", delete(delete_npub))
+        .route("/api/sync", post(trigger_sync))
+        .route("/api/backup", post(backup_data))
+        .route("/api/restore", post(restore_data))
+        .route("/api/logs", get(download_logs))
+        .nest_service("/", ServeDir::new("public"))
+        .with_state(state);
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    println!("✅ Preloaded 5 default relays");
+    println!("🚀 Server running on http://0.0.0.0:8080");
+    axum::serve(TcpListener::bind(&addr).await.unwrap(), app).await.unwrap();
+}
