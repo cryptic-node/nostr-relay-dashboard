@@ -84,9 +84,9 @@
             </div>
         </div>
 
-        <!-- Action Buttons -->
+        <!-- Action Buttons + Status -->
         <div class="mt-10 flex flex-wrap gap-3 justify-center">
-            <button onclick="triggerSync()" class="bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-semibold px-8 py-4 rounded-3xl flex items-center gap-3 shadow-lg">
+            <button onclick="triggerSync()" id="sync-btn" class="bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-semibold px-8 py-4 rounded-3xl flex items-center gap-3 shadow-lg">
                 <i class="fas fa-sync"></i> Sync Now
             </button>
             <button onclick="backupData()" class="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold px-8 py-4 rounded-3xl flex items-center gap-3 shadow-lg">
@@ -102,6 +102,7 @@
                 <i class="fas fa-power-off"></i> Restart Server
             </button>
         </div>
+        <div id="status" class="mt-6 text-center text-green-400 font-medium min-h-[28px]"></div>
     </div>
 
     <script>
@@ -113,11 +114,13 @@
                 const relays = await relaysRes.json();
                 const npubs = await npubsRes.json();
 
+                // Relays with notes pulled + last sync (restores previous detailed display)
                 document.getElementById('relays-list').innerHTML = relays.map(r => `
                     <div class="flex justify-between items-center bg-zinc-900 hover:bg-zinc-800 p-4 rounded-2xl group">
                         <div>
                             <div class="font-mono text-sm text-blue-300">${r.url}</div>
                             ${r.name ? `<div class="text-xs text-zinc-400">${r.name}</div>` : ''}
+                            ${r.notes_pulled !== undefined ? `<div class="text-xs text-emerald-400">${r.notes_pulled} notes pulled • last sync ${r.last_sync || 'never'}</div>` : ''}
                         </div>
                         <button onclick="deleteRelay(${r.id}); event.stopImmediatePropagation()" class="trash-btn text-red-400">
                             <i class="fas fa-trash-can"></i>
@@ -125,6 +128,7 @@
                     </div>
                 `).join('');
 
+                // Npubs with real note count
                 document.getElementById('npubs-list').innerHTML = npubs.map(n => {
                     const isSelected = currentSelectedNpub === n.npub ? 'ring-2 ring-purple-500 bg-zinc-800' : '';
                     return `
@@ -147,7 +151,7 @@
             const res = await fetch(`/api/events?npub=${encodeURIComponent(npub)}`);
             let events = await res.json();
 
-            // ONLY show real notes (kind=1). Completely hide contacts and everything else.
+            // ONLY real notes (kind=1) – contacts completely hidden
             events = events.filter(e => e.kind === 1);
 
             const container = document.getElementById('events-list');
@@ -198,15 +202,22 @@
         }
 
         async function triggerSync() {
-            const btn = event.target.closest('button');
+            const btn = document.getElementById('sync-btn');
             const original = btn.innerHTML;
             btn.innerHTML = `<i class="fas fa-spinner animate-spin"></i> Syncing...`;
             btn.disabled = true;
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = '';
+
             try {
-                await fetch('/api/sync', { method: 'POST' });
-                alert('Sync finished!');
-            } catch (e) { alert('Sync failed'); }
-            finally {
+                const res = await fetch('/api/sync', { method: 'POST' });
+                const data = await res.json();
+                // Show detailed green status under buttons
+                statusEl.innerHTML = `<span class="text-emerald-400">${data.message || 'Sync finished!'}</span>`;
+                setTimeout(() => { statusEl.textContent = ''; }, 6000);
+            } catch (e) {
+                statusEl.innerHTML = `<span class="text-red-400">Sync failed</span>`;
+            } finally {
                 btn.innerHTML = original;
                 btn.disabled = false;
                 loadData();
