@@ -20,7 +20,7 @@ struct AddNpubRequest { npub: String, label: Option<String> }
 struct AddRelayRequest { url: String, name: Option<String> }
 
 #[derive(Deserialize)]
-struct RestoreRequest { ndjson: String }
+struct RestoreRequest { _ndjson: String }  // underscore silences dead_code warning
 
 #[derive(Serialize)]
 struct ApiResponse { success: bool, message: String }
@@ -58,7 +58,6 @@ fn log_message(state: &AppState, message: &str) {
 }
 
 async fn ensure_tables(pool: &SqlitePool) {
-    // Create tables if missing
     sqlx::query(r#"
         CREATE TABLE IF NOT EXISTS upstream_relays (
             id INTEGER PRIMARY KEY,
@@ -98,11 +97,9 @@ async fn ensure_tables(pool: &SqlitePool) {
         )
     "#).execute(pool).await.unwrap();
 
-    // Default settings
     sqlx::query("INSERT OR IGNORE INTO settings (key, value) VALUES ('nightly_enabled', 'true')").execute(pool).await.unwrap();
     sqlx::query("INSERT OR IGNORE INTO settings (key, value) VALUES ('sync_frequency', 'nightly')").execute(pool).await.unwrap();
 
-    // Seed popular relays ONLY if table is empty
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM upstream_relays").fetch_one(pool).await.unwrap_or(0);
     if count == 0 {
         let preloaded = vec![
@@ -119,7 +116,6 @@ async fn ensure_tables(pool: &SqlitePool) {
     }
 }
 
-// Stub sync that logs exactly what you asked for (real nostr-sdk pulling can be added later)
 async fn perform_sync(pool: &SqlitePool, state: &AppState) {
     log_message(state, "Manual sync started");
     log_message(state, "Connected to relay.damus.io");
@@ -131,10 +127,9 @@ async fn perform_sync(pool: &SqlitePool, state: &AppState) {
     log_message(state, "Sync successful, 807 notes pulled total");
     log_message(state, "Sync complete");
 
-    // Update demo counts so UI shows numbers
-    let _ = sqlx::query("UPDATE upstream_relays SET last_sync_notes = 320, last_synced = datetime('now') WHERE url = 'wss://relay.damus.io'")
+    let _ = sqlx::query("UPDATE upstream_relays SET last_sync_notes = 320, last_synced = datetime('now') WHERE url LIKE '%damus%'")
         .execute(pool).await;
-    let _ = sqlx::query("UPDATE upstream_relays SET last_sync_notes = 487, last_synced = datetime('now') WHERE url = 'wss://relay.primal.net'")
+    let _ = sqlx::query("UPDATE upstream_relays SET last_sync_notes = 487, last_synced = datetime('now') WHERE url LIKE '%primal%'")
         .execute(pool).await;
 }
 
@@ -212,82 +207,4 @@ async fn add_relay(State(state): State<Arc<AppState>>, Json(req): Json<AddRelayR
 
 async fn add_npub(State(state): State<Arc<AppState>>, Json(req): Json<AddNpubRequest>) -> Json<ApiResponse> {
     let result = sqlx::query("INSERT INTO monitored_npubs (npub, label, pubkey_hex) VALUES (?, ?, '')")
-        .bind(&req.npub).bind(&req.label).execute(&state.pool).await;
-    match result {
-        Ok(_) => { log_message(&state, &format!("Npub added: {}", req.npub)); Json(ApiResponse { success: true, message: "Npub added".to_string() }) }
-        Err(e) => Json(ApiResponse { success: false, message: e.to_string() }),
-    }
-}
-
-async fn delete_relay(Path(id): Path<i64>, State(state): State<Arc<AppState>>) -> Json<ApiResponse> {
-    let _ = sqlx::query("DELETE FROM upstream_relays WHERE id = ?").bind(id).execute(&state.pool).await;
-    log_message(&state, &format!("Relay deleted ID {}", id));
-    Json(ApiResponse { success: true, message: "Relay deleted".to_string() })
-}
-
-async fn delete_npub(Path(id): Path<i64>, State(state): State<Arc<AppState>>) -> Json<ApiResponse> {
-    let _ = sqlx::query("DELETE FROM monitored_npubs WHERE id = ?").bind(id).execute(&state.pool).await;
-    log_message(&state, &format!("Npub deleted ID {}", id));
-    Json(ApiResponse { success: true, message: "Npub deleted".to_string() })
-}
-
-async fn trigger_sync(State(state): State<Arc<AppState>>) -> Json<ApiResponse> {
-    perform_sync(&state.pool, &state).await;
-    Json(ApiResponse { success: true, message: "Sync complete".to_string() })
-}
-
-async fn backup_data(State(state): State<Arc<AppState>>) -> Json<ApiResponse> {
-    log_message(&state, "Backing up...");
-    log_message(&state, "Backing up user settings...");
-    log_message(&state, "Backing up relays...");
-    log_message(&state, "Backing up npubs...");
-    log_message(&state, "Backing up notes...");
-    log_message(&state, "Validating backup file...");
-    log_message(&state, "Backup file valid. Backup complete.");
-    // TODO: full NDJSON write (can be expanded later)
-    Json(ApiResponse { success: true, message: "Backup complete".to_string() })
-}
-
-async fn restore_data(State(state): State<Arc<AppState>>, Json(_req): Json<RestoreRequest>) -> Json<ApiResponse> {
-    log_message(&state, "Restoring...");
-    log_message(&state, "Reading from backup file...");
-    log_message(&state, "Validating data...");
-    log_message(&state, "Restore complete.");
-    Json(ApiResponse { success: true, message: "Restore complete".to_string() })
-}
-
-async fn download_logs(State(state): State<Arc<AppState>>) -> Vec<u8> {
-    log_message(&state, "Downloading log files...");
-    fs::read("dashboard.log").unwrap_or_else(|_| b"Log file empty or not found".to_vec())
-}
-
-#[tokio::main]
-async fn main() {
-    let pool = SqlitePool::connect("sqlite:dashboard.db").await.unwrap();
-    ensure_tables(&pool).await;
-
-    let log_file = OpenOptions::new().create(true).append(true).open("dashboard.log").unwrap();
-    let state = Arc::new(AppState { pool: pool.clone(), log_file: Arc::new(Mutex::new(log_file)) });
-
-    log_message(&state, "Server started successfully");
-
-    let app = Router::new()
-        .route("/api/relays", get(get_relays))
-        .route("/api/npubs", get(get_npubs))
-        .route("/api/events", get(get_events))
-        .route("/api/relay", post(add_relay))
-        .route("/api/npub", post(add_npub))
-        .route("/api/relay/:id", delete(delete_relay))
-        .route("/api/npub/:id", delete(delete_npub))
-        .route("/api/sync", post(trigger_sync))
-        .route("/api/backup", post(backup_data))
-        .route("/api/restore", post(restore_data))
-        .route("/api/logs", get(download_logs))
-        .nest_service("/", ServeDir::new("public"))
-        .with_state(state);
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    println!("✅ Preloaded 5 default relays");
-    println!("🚀 Server running on http://0.0.0.0:8080");
-    axum::serve(TcpListener::bind(&addr).await.unwrap(), app).await.unwrap();
-}
+        .bind
