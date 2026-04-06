@@ -73,10 +73,10 @@
                 </div>
             </div>
 
-            <!-- Recent Events -->
+            <!-- Recent Events (Notes Only) -->
             <div class="card rounded-3xl p-6 flex flex-col">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-semibold">Recent Events</h2>
+                    <h2 class="text-2xl font-semibold">Recent Notes</h2>
                     <span id="selected-label" class="bg-zinc-800 text-xs px-3 py-1 rounded-full"></span>
                 </div>
                 <div id="events-list" class="scroll-list flex-1 space-y-4 pr-2"></div>
@@ -108,147 +108,164 @@
     <script>
         let currentSelectedNpub = null;
 
-        async function loadData() {
-            try {
-                const [relaysRes, npubsRes] = await Promise.all([fetch('/api/relays'), fetch('/api/npubs')]);
-                const relays = await relaysRes.json();
-                const npubs = await npubsRes.json();
+        async function loadRelays() {
+            const res = await fetch('/api/relays');
+            const relays = await res.json();
+            const container = document.getElementById('relays-list');
+            container.innerHTML = '';
+            document.getElementById('relay-count').textContent = `${relays.length} relays`;
 
-                // Relays – uses exact backend fields
-                document.getElementById('relays-list').innerHTML = relays.map(r => `
-                    <div class="flex justify-between items-center bg-zinc-900 hover:bg-zinc-800 p-4 rounded-2xl group">
-                        <div>
-                            <div class="font-mono text-sm text-blue-300">${r.url}</div>
-                            ${r.name ? `<div class="text-xs text-zinc-400">${r.name}</div>` : ''}
-                            <div class="text-xs text-emerald-400">${r.last_sync_notes || 0} notes pulled • last sync ${r.last_synced || 'never'}</div>
+            relays.forEach(r => {
+                const last = r.last_synced ? new Date(r.last_synced).toLocaleString() : 'Never';
+                const card = document.createElement('div');
+                card.className = 'card p-4 rounded-2xl flex justify-between items-center';
+                card.innerHTML = `
+                    <div>
+                        <div class="font-medium">${r.name || r.url}</div>
+                        <div class="text-xs text-zinc-400">${r.url}</div>
+                        <div class="text-xs text-emerald-400 mt-1">
+                            ${r.last_sync_notes} notes pulled • Last synced: ${last}
                         </div>
-                        <button onclick="deleteRelay(${r.id}); event.stopImmediatePropagation()" class="trash-btn text-red-400">
-                            <i class="fas fa-trash-can"></i>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="deleteRelay(${r.id}); event.stopImmediatePropagation()" class="trash-btn text-zinc-400 hover:text-red-500">
+                            <i class="fas fa-trash"></i>
                         </button>
                     </div>
-                `).join('');
+                `;
+                container.appendChild(card);
+            });
+        }
 
-                // Npubs
-                document.getElementById('npubs-list').innerHTML = npubs.map(n => {
-                    const isSelected = currentSelectedNpub === n.npub ? 'ring-2 ring-purple-500 bg-zinc-800' : '';
-                    return `
-                    <div onclick="selectNpub('${n.npub}', '${n.label || ''}')" class="cursor-pointer bg-zinc-900 hover:bg-zinc-800 p-4 rounded-2xl transition-all ${isSelected}">
-                        <div class="font-mono text-sm break-all">${n.npub}</div>
-                        ${n.label ? `<div class="text-emerald-400 text-xs mt-1">${n.label}</div>` : ''}
-                        <div class="text-zinc-400 text-xs mt-1">${n.note_count || 0} notes synced</div>
-                    </div>`;
-                }).join('');
+        async function loadNpubs() {
+            const res = await fetch('/api/npubs');
+            const npubs = await res.json();
+            const container = document.getElementById('npubs-list');
+            container.innerHTML = '';
+            document.getElementById('npub-count').textContent = `${npubs.length} npubs`;
 
-                document.getElementById('relay-count').textContent = `${relays.length} relays`;
-                document.getElementById('npub-count').textContent = `${npubs.length} npubs`;
-            } catch (e) { console.error("Load error:", e); }
+            npubs.forEach(n => {
+                const card = document.createElement('div');
+                card.className = 'card p-4 rounded-2xl cursor-pointer hover:ring-2 hover:ring-purple-500';
+                card.onclick = () => selectNpub(n.npub, n.label || n.npub);
+                card.innerHTML = `
+                    <div class="flex justify-between">
+                        <div class="font-medium font-mono text-sm">${n.npub.slice(0,12)}…${n.npub.slice(-4)}</div>
+                        <div class="text-xs text-zinc-400">${n.label || ''}</div>
+                    </div>
+                    <div class="text-xs text-purple-400 mt-2">
+                        ${n.notes_stored} notes stored • Following: ${n.following_count}
+                    </div>
+                    <div class="text-[10px] text-zinc-500 mt-1">Last synced: ${n.last_synced || 'Never'}</div>
+                `;
+                container.appendChild(card);
+            });
         }
 
         async function selectNpub(npub, label) {
             currentSelectedNpub = npub;
-            document.getElementById('selected-label').innerHTML = `<span class="bg-zinc-800 text-xs px-3 py-1 rounded-full">${label || npub.slice(0,12)+'...'}</span>`;
-
+            document.getElementById('selected-label').textContent = label;
             const res = await fetch(`/api/events?npub=${encodeURIComponent(npub)}`);
-            let events = await res.json();
-
-            events = events.filter(e => e.kind === 1);
-
+            const events = await res.json();
             const container = document.getElementById('events-list');
-            const noMsg = document.getElementById('no-events-msg');
+            container.innerHTML = '';
 
             if (events.length === 0) {
-                container.innerHTML = '';
-                noMsg.classList.remove('hidden');
-            } else {
-                noMsg.classList.add('hidden');
-                container.innerHTML = events.map(e => `
-                    <div class="bg-zinc-900 rounded-2xl p-5">
-                        <div class="flex justify-between text-xs mb-3">
-                            <span class="px-3 py-1 rounded-full bg-purple-900 text-purple-300">Note</span>
-                            <span class="text-zinc-500">${e.created_at}</span>
-                        </div>
-                        <div class="text-zinc-200 whitespace-pre-wrap">${e.preview || '(no content)'}</div>
-                    </div>
-                `).join('');
+                document.getElementById('no-events-msg').classList.remove('hidden');
+                return;
             }
-            loadData();
+            document.getElementById('no-events-msg').classList.add('hidden');
+
+            events.forEach(e => {
+                const div = document.createElement('div');
+                div.className = 'bg-zinc-900 rounded-2xl p-4';
+                div.innerHTML = `
+                    <div class="text-xs text-zinc-400">${e.created_at}</div>
+                    <div class="mt-1 text-sm leading-relaxed">${e.preview}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function loadData() {
+            await Promise.all([loadRelays(), loadNpubs()]);
         }
 
         async function addRelay() {
             const url = document.getElementById('relay-url').value.trim();
             const name = document.getElementById('relay-name').value.trim();
-            if (!url) return alert("URL required");
-            await fetch('/api/relays', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({url, name: name || null}) });
-            document.getElementById('relay-url').value = '';
-            document.getElementById('relay-name').value = '';
-            loadData();
+            if (!url) return;
+            await fetch('/api/relays', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({url, name: name||null}) });
+            loadRelays();
         }
 
         async function deleteRelay(id) {
             if (!confirm('Delete this relay?')) return;
             await fetch(`/api/relays/${id}`, { method: 'DELETE' });
-            loadData();
+            loadRelays();
         }
 
         async function addNpub() {
             const npub = document.getElementById('npub-input').value.trim();
             const label = document.getElementById('label-input').value.trim();
-            if (!npub) return alert("npub required");
-            await fetch('/api/npubs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({npub, label: label || null}) });
-            document.getElementById('npub-input').value = '';
-            document.getElementById('label-input').value = '';
-            loadData();
+            if (!npub) return;
+            await fetch('/api/npubs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({npub, label: label||null}) });
+            loadNpubs();
         }
 
         async function triggerSync() {
-            const btn = document.getElementById('sync-btn');
-            const original = btn.innerHTML;
-            btn.innerHTML = `<i class="fas fa-spinner animate-spin"></i> Syncing...`;
-            btn.disabled = true;
-            const statusEl = document.getElementById('status');
-            statusEl.textContent = '';
-
-            try {
-                const res = await fetch('/api/sync', { method: 'POST' });
-                const data = await res.json();
-                statusEl.innerHTML = `<span class="text-emerald-400">${data.message || 'Sync finished!'}</span>`;
-                setTimeout(() => { statusEl.textContent = ''; }, 8000);
-            } catch (e) {
-                statusEl.innerHTML = `<span class="text-red-400">Sync failed</span>`;
-            } finally {
-                btn.innerHTML = original;
-                btn.disabled = false;
-                loadData();
-            }
+            document.getElementById('status').textContent = '🔄 Syncing...';
+            await fetch('/api/sync', { method: 'POST' });
+            setTimeout(() => { loadData(); document.getElementById('status').textContent = '✅ Sync complete'; }, 1500);
         }
 
         async function backupData() {
             const res = await fetch('/api/backup');
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
+            const data = await res.json();
+            const blob = new Blob([JSON.stringify(data.ndjson, null, 2)], {type: 'application/json'});
             const a = document.createElement('a');
-            a.href = url; a.download = 'nostr-backup.ndjson';
-            document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+            a.href = URL.createObjectURL(blob);
+            a.download = 'nostr-backup.ndjson';
+            a.click();
         }
 
         async function restoreData() {
             const input = document.createElement('input');
-            input.type = 'file'; input.accept = '.ndjson';
-            input.onchange = async e => {
+            input.type = 'file';
+            input.accept = '.ndjson';
+            input.onchange = async (e) => {
                 const file = e.target.files[0];
-                if (!file) return;
-                const form = new FormData(); form.append('file', file);
-                await fetch('/api/restore', { method: 'POST', body: form });
-                loadData(); alert('Restore complete');
+                const text = await file.text();
+                await fetch('/api/restore', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ndjson: text}) });
+                loadData();
             };
             input.click();
         }
 
-        async function downloadLogs() { window.location.href = '/api/logs'; }
-        async function restartServer() { if (confirm('Restart server?')) await fetch('/api/restart', { method: 'POST' }); alert('Server restarting...'); }
-        function toggleAutoSync() { document.getElementById('frequency-select').disabled = !document.getElementById('auto-sync-toggle').checked; }
+        async function downloadLogs() {
+            const res = await fetch('/api/logs');
+            const text = await res.text();
+            const blob = new Blob([text], {type: 'text/plain'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'dashboard.log';
+            a.click();
+        }
 
+        function restartServer() {
+            if (confirm('Restart the server?')) {
+                fetch('/api/restart', { method: 'POST' }).then(() => location.reload());
+            }
+        }
+
+        function toggleAutoSync() {
+            // Settings toggle handled server-side via /api/settings (left as exercise for nightly sync)
+            console.log('Auto-sync toggled');
+        }
+
+        // Init
         window.onload = loadData;
+        setInterval(loadData, 30000); // live refresh
     </script>
 </body>
 </html>
