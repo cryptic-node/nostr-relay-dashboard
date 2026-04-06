@@ -15,8 +15,7 @@ use serde_json;
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 #[derive(Deserialize)]
 struct AddNpubRequest {
@@ -69,7 +68,7 @@ fn log_message(state: &AppState, message: &str) {
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let entry = format!("{} | {}\n", timestamp, message);
     println!("{}", entry);
-    let mut file = state.log_file.blocking_lock();
+    let mut file = state.log_file.lock().unwrap();
     let _ = file.write_all(entry.as_bytes());
 }
 
@@ -352,40 +351,4 @@ async fn download_logs(State(state): State<Arc<AppState>>) -> Vec<u8> {
 async fn main() {
     let pool = SqlitePool::connect("sqlite:dashboard.db?mode=rwc")
         .await
-        .expect("Failed to connect to SQLite database. Check directory permissions.");
-
-    ensure_tables(&pool).await;
-
-    let log_file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("dashboard.log")
-        .expect("Failed to open dashboard.log for writing");
-
-    let state = Arc::new(AppState {
-        pool: pool.clone(),
-        log_file: Arc::new(Mutex::new(log_file)),
-    });
-
-    log_message(&state, "Server started successfully");
-
-    let app = Router::new()
-        .route("/api/relays", get(get_relays))
-        .route("/api/npubs", get(get_npubs))
-        .route("/api/events", get(get_events))
-        .route("/api/relay", post(add_relay))
-        .route("/api/npub", post(add_npub))
-        .route("/api/relay/:id", delete(delete_relay))
-        .route("/api/npub/:id", delete(delete_npub))
-        .route("/api/sync", post(trigger_sync))
-        .route("/api/backup", post(backup_data))
-        .route("/api/restore", post(restore_data))
-        .route("/api/logs", get(download_logs))
-        .nest_service("/", ServeDir::new("public"))
-        .with_state(state);
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    println!("✅ Preloaded 5 default relays");
-    println!("🚀 Server running on http://0.0.0.0:8080");
-    axum::serve(TcpListener::bind(&addr).await.unwrap(), app).await.unwrap();
-}
+        .expect("
