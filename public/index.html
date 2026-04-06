@@ -75,12 +75,12 @@
 
             <!-- Recent Events -->
             <div class="card rounded-3xl p-6 flex flex-col">
-                <div class="flex justify-between items-baseline mb-4">
+                <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold">Recent Events</h2>
-                    <span id="selected-label" class="text-purple-400 font-medium"></span>
+                    <span id="selected-label" class="bg-zinc-800 text-xs px-3 py-1 rounded-full"></span>
                 </div>
                 <div id="events-list" class="scroll-list flex-1 space-y-4 pr-2"></div>
-                <div id="no-events-msg" class="hidden text-zinc-500 text-center py-20 flex-1 flex items-center justify-center">Select an npub above to view its notes and events</div>
+                <div id="no-events-msg" class="hidden text-zinc-500 text-center py-20 flex-1 flex items-center justify-center">Select an npub to view its real notes</div>
             </div>
         </div>
 
@@ -109,14 +109,10 @@
 
         async function loadData() {
             try {
-                const [relaysRes, npubsRes] = await Promise.all([
-                    fetch('/api/relays'),
-                    fetch('/api/npubs')
-                ]);
+                const [relaysRes, npubsRes] = await Promise.all([fetch('/api/relays'), fetch('/api/npubs')]);
                 const relays = await relaysRes.json();
                 const npubs = await npubsRes.json();
 
-                // Relays
                 document.getElementById('relays-list').innerHTML = relays.map(r => `
                     <div class="flex justify-between items-center bg-zinc-900 hover:bg-zinc-800 p-4 rounded-2xl group">
                         <div>
@@ -129,7 +125,6 @@
                     </div>
                 `).join('');
 
-                // Npubs with note count + purple border
                 document.getElementById('npubs-list').innerHTML = npubs.map(n => {
                     const isSelected = currentSelectedNpub === n.npub ? 'ring-2 ring-purple-500 bg-zinc-800' : '';
                     return `
@@ -142,26 +137,18 @@
 
                 document.getElementById('relay-count').textContent = `${relays.length} relays`;
                 document.getElementById('npub-count').textContent = `${npubs.length} npubs`;
-            } catch (e) {
-                console.error("Load error:", e);
-            }
+            } catch (e) { console.error("Load error:", e); }
         }
 
         async function selectNpub(npub, label) {
             currentSelectedNpub = npub;
-            document.getElementById('selected-label').textContent = label || npub.slice(0, 12) + '...';
+            document.getElementById('selected-label').innerHTML = `<span class="bg-zinc-800 text-xs px-3 py-1 rounded-full">${label || npub.slice(0,12)+'...'}</span>`;
 
             const res = await fetch(`/api/events?npub=${encodeURIComponent(npub)}`);
             let events = await res.json();
 
-            // Real notes (kind=1) first, contacts (kind=3) pushed to bottom
-            events.sort((a, b) => {
-                if (a.kind === 1 && b.kind !== 1) return -1;
-                if (a.kind !== 1 && b.kind === 1) return 1;
-                if (a.kind === 3 && b.kind !== 3) return 1;
-                if (a.kind !== 3 && b.kind === 3) return -1;
-                return 0;
-            });
+            // ONLY show real notes (kind=1). Completely hide contacts and everything else.
+            events = events.filter(e => e.kind === 1);
 
             const container = document.getElementById('events-list');
             const noMsg = document.getElementById('no-events-msg');
@@ -174,23 +161,23 @@
                 container.innerHTML = events.map(e => `
                     <div class="bg-zinc-900 rounded-2xl p-5">
                         <div class="flex justify-between text-xs mb-3">
-                            <span class="px-3 py-1 rounded-full ${e.kind === 1 ? 'bg-purple-900 text-purple-300' : 'bg-zinc-700 text-zinc-400'}">
-                                ${e.kind === 1 ? 'Note' : e.kind === 3 ? 'Contacts' : 'Event ' + e.kind}
-                            </span>
+                            <span class="px-3 py-1 rounded-full bg-purple-900 text-purple-300">Note</span>
                             <span class="text-zinc-500">${e.created_at}</span>
                         </div>
                         <div class="text-zinc-200 whitespace-pre-wrap">${e.preview || '(no content)'}</div>
                     </div>
                 `).join('');
             }
-            loadData(); // refresh borders + counts
+            loadData();
         }
 
         async function addRelay() {
             const url = document.getElementById('relay-url').value.trim();
             const name = document.getElementById('relay-name').value.trim();
             if (!url) return alert("URL required");
-            await fetch('/api/relays', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, name: name || null }) });
+            await fetch('/api/relays', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({url, name: name || null}) });
+            document.getElementById('relay-url').value = '';
+            document.getElementById('relay-name').value = '';
             loadData();
         }
 
@@ -204,7 +191,9 @@
             const npub = document.getElementById('npub-input').value.trim();
             const label = document.getElementById('label-input').value.trim();
             if (!npub) return alert("npub required");
-            await fetch('/api/npubs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ npub, label: label || null }) });
+            await fetch('/api/npubs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({npub, label: label || null}) });
+            document.getElementById('npub-input').value = '';
+            document.getElementById('label-input').value = '';
             loadData();
         }
 
@@ -214,12 +203,10 @@
             btn.innerHTML = `<i class="fas fa-spinner animate-spin"></i> Syncing...`;
             btn.disabled = true;
             try {
-                const res = await fetch('/api/sync', { method: 'POST' });
-                const data = await res.json();
-                alert(data.message || 'Sync finished!');
-            } catch (e) {
-                alert('Sync failed');
-            } finally {
+                await fetch('/api/sync', { method: 'POST' });
+                alert('Sync finished!');
+            } catch (e) { alert('Sync failed'); }
+            finally {
                 btn.innerHTML = original;
                 btn.disabled = false;
                 loadData();
@@ -227,52 +214,30 @@
         }
 
         async function backupData() {
-            try {
-                const res = await fetch('/api/backup');
-                const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'nostr-backup.ndjson';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(url);
-            } catch (e) {
-                alert('Backup failed');
-            }
+            const res = await fetch('/api/backup');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'nostr-backup.ndjson';
+            document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
         }
 
         async function restoreData() {
             const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.ndjson';
+            input.type = 'file'; input.accept = '.ndjson';
             input.onchange = async e => {
                 const file = e.target.files[0];
                 if (!file) return;
-                const form = new FormData();
-                form.append('file', file);
+                const form = new FormData(); form.append('file', file);
                 await fetch('/api/restore', { method: 'POST', body: form });
-                loadData();
-                alert('Restore complete');
+                loadData(); alert('Restore complete');
             };
             input.click();
         }
 
-        async function downloadLogs() {
-            window.location.href = '/api/logs';
-        }
-
-        async function restartServer() {
-            if (!confirm('Restart the server?')) return;
-            await fetch('/api/restart', { method: 'POST' });
-            alert('Server restarting...');
-        }
-
-        function toggleAutoSync() {
-            const freq = document.getElementById('frequency-select');
-            freq.disabled = !document.getElementById('auto-sync-toggle').checked;
-        }
+        async function downloadLogs() { window.location.href = '/api/logs'; }
+        async function restartServer() { if (confirm('Restart server?')) await fetch('/api/restart', { method: 'POST' }); alert('Server restarting...'); }
+        function toggleAutoSync() { document.getElementById('frequency-select').disabled = !document.getElementById('auto-sync-toggle').checked; }
 
         window.onload = loadData;
     </script>
