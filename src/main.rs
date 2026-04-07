@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use nostr_sdk::nostr::PublicKey;
 use chrono::Local;
-use serde_json;
+use serde_json::{self, Value};
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -171,7 +171,7 @@ async fn perform_sync(pool: &SqlitePool) {
         "UPDATE upstream_relays SET last_sync_notes = 487, last_synced = datetime('now') WHERE url LIKE '%primal%'"
     ).execute(pool).await;
 
-    // Insert demo notes for every monitored npub
+    // Demo notes (temporary until real nostr-sdk pulling in V1.1)
     let npubs = sqlx::query("SELECT id, npub, pubkey_hex FROM monitored_npubs")
         .fetch_all(pool).await.unwrap_or_default();
 
@@ -416,7 +416,51 @@ async fn restore_data(
     log_message("Restoring...");
     log_message("Reading from backup file...");
     log_message("Validating data...");
-    let _ = serde_json::from_str::<serde_json::Value>(&req.ndjson);
+
+    let lines: Vec<&str> = req.ndjson.lines().collect();
+    for line in lines {
+        if line.trim().is_empty() { continue; }
+        let parsed: Value = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let typ = parsed["type"].as_str().unwrap_or("");
+        let data = &parsed["data"];
+
+        match typ {
+            "relay" => {
+                let _ = sqlx::query(
+                    "INSERT OR IGNORE INTO upstream_relays (url, name, enabled, preloaded) VALUES (?, ?, ?, ?)"
+                )
+                .bind(data["url"].as_str().unwrap_or(""))
+                .bind(data["name"].as_str())
+                .bind(data["enabled"].as_bool().unwrap_or(true) as i64)
+                .bind(data["preloaded"].as_bool().unwrap_or(false) as i64)
+                .execute(&state.pool).await;
+            }
+            "npub" => {
+                let _ = sqlx::query(
+                    "INSERT OR IGNORE INTO monitored_npubs (npub, label, pubkey_hex) VALUES (?, ?, '')"
+                )
+                .bind(data["npub"].as_str().unwrap_or(""))
+                .bind(data["label"].as_str())
+                .execute(&state.pool).await;
+            }
+            "event" => {
+                let _ = sqlx::query(
+                    "INSERT OR IGNORE INTO events (id, pubkey, kind, content, created_at) VALUES (?, ?, ?, ?, ?)"
+                )
+                .bind(data["id"].as_str().unwrap_or(""))
+                .bind(data["pubkey"].as_str().unwrap_or(""))
+                .bind(data["kind"].as_i64().unwrap_or(1))
+                .bind(data["content"].as_str().unwrap_or(""))
+                .bind(data["created_at"].as_i64().unwrap_or(0))
+                .execute(&state.pool).await;
+            }
+            _ => {}
+        }
+    }
+
     log_message("Restore complete.");
     Json(ApiResponse { success: true, message: "Restore complete".to_string() })
 }
