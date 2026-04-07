@@ -1,8 +1,10 @@
 Nostr Relay Dashboard v1.0.1
 
+
 Self-hosted Nostr event aggregator and personal backup dashboard. Pulls real Kind=1 text notes (signed by your monitored npubs) from configurable upstream relays, stores them locally, and gives you a clean, fast, mobile-friendly dark UI to browse, backup, and restore everything.
 
 Live on main branch (stable production release): http://159.89.49.4:8080
+
 
 Current Features (v1.0.1)
 
@@ -40,6 +42,7 @@ Current Features (v1.0.1)
 
 •	Production ready: Runs forever in tmux, port-bind safety, graceful error handling, and clean shutdown.
 
+
 Bottom Control Bar (exactly as specified)
 
 •	Sync Now
@@ -51,6 +54,7 @@ Bottom Control Bar (exactly as specified)
 •	Download Logs
 
 •	Restart Server
+
 
 
 Quick Start (on your Droplet)
