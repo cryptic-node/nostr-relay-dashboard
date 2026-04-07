@@ -1,11 +1,11 @@
 # Nostr Relay Dashboard
 
-**Personal backup & aggregator • Version 1.0**  
+**Personal backup & aggregator • Version 1.0.2**  
 **Dev Team:** cryptic-node & SuperGrok • Powered by Rust
 
 A clean, self-hosted Nostr relay dashboard that lets you pull and store events from upstream relays for any number of npubs. Built as a passion project to improve on the Umbrel three-panel layout with manual relay control, multi-npub support, readable event previews, backup/restore, and more.
 
-## Features (v1.0.1)
+## Features (v1.0.2)
 
 - **Real note sync and Kind 1 notes displayed on npub selection.
 - **Three-panel layout** – Upstream relays (left), monitored npubs (center), recent events (right)
