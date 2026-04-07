@@ -32,13 +32,18 @@
         </div>
 
         <div class="grid grid-cols-3 gap-6">
-            <!-- Left: Relays -->
+            <!-- Left: Relays (now with Add Relay section stacked at bottom) -->
             <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800">
                 <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2"><i class="fa-solid fa-plug"></i> Upstream Relays</h2>
                 <div id="relays-list" class="space-y-3 text-sm"></div>
+                <div class="mt-6 pt-6 border-t border-zinc-800">
+                    <input id="new-relay-url" type="text" placeholder="wss://..." class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
+                    <input id="new-relay-name" type="text" placeholder="Relay name (optional)" class="mt-2 w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
+                    <button onclick="addRelay()" class="mt-3 w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-2xl font-medium">+ Add Relay</button>
+                </div>
             </div>
 
-            <!-- Middle: Npubs (now polished to match relay style) -->
+            <!-- Middle: Npubs (kept exactly as you loved) -->
             <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800">
                 <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2"><i class="fa-solid fa-user-secret"></i> Monitored Npubs</h2>
                 <div id="npubs-list" class="space-y-3 text-sm"></div>
@@ -104,9 +109,7 @@
             const npubsData = await res.json();
             const container = document.getElementById('npubs-list');
             container.innerHTML = npubsData.map(n => {
-                const displayNpub = n.npub.length > 24 
-                    ? n.npub.substring(0, 20) + '...' 
-                    : n.npub;
+                const displayNpub = n.npub.length > 24 ? n.npub.substring(0, 20) + '...' : n.npub;
                 return `
                 <div onclick="selectNpub(${n.id}, '${n.npub}', '${n.label || ''}')" 
                      class="flex justify-between items-center bg-zinc-800 hover:bg-zinc-700 rounded-2xl px-4 py-3 cursor-pointer ${selectedNpubId === n.id ? 'npub-selected' : ''}">
@@ -145,12 +148,18 @@
             `).join('');
         }
 
-        async function syncNow() {
-            document.getElementById('status-bar').innerHTML = '🔄 Syncing… Pulling real kind=1 notes from monitored npubs';
-            const res = await fetch('/api/sync', { method: 'POST' });
-            const data = await res.json();
-            document.getElementById('status-bar').innerHTML = `<span class="text-emerald-400">${data.message}</span>`;
-            setTimeout(() => { fetchRelays(); fetchNpubs(); }, 2000);
+        async function addRelay() {
+            const url = document.getElementById('new-relay-url').value.trim();
+            const name = document.getElementById('new-relay-name').value.trim();
+            if (!url) return;
+            await fetch('/api/relays', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url, name: name || null })
+            });
+            fetchRelays();
+            document.getElementById('new-relay-url').value = '';
+            document.getElementById('new-relay-name').value = '';
         }
 
         async function addNpub() {
@@ -165,6 +174,14 @@
             fetchNpubs();
             document.getElementById('new-npub').value = '';
             document.getElementById('new-label').value = '';
+        }
+
+        async function syncNow() {
+            document.getElementById('status-bar').innerHTML = '🔄 Syncing… Pulling real kind=1 notes from monitored npubs';
+            const res = await fetch('/api/sync', { method: 'POST' });
+            const data = await res.json();
+            document.getElementById('status-bar').innerHTML = `<span class="text-emerald-400">${data.message}</span>`;
+            setTimeout(() => { fetchRelays(); fetchNpubs(); }, 2000);
         }
 
         async function backup() {
