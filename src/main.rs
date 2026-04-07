@@ -1,11 +1,11 @@
 use axum::{
-    extract::{Path, Query, State},
-    http::{header, StatusCode},
+    extract::{Path, State},
+    http::header,
     response::{IntoResponse, Response},
     routing::{delete, get, post},
     Json, Router,
 };
-use chrono::{Local, Timelike};
+use chrono::Local;
 use nostr_sdk::{ClientBuilder, Filter, FromBech32, Kind, PublicKey, Timestamp};
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePool, Row};
@@ -138,7 +138,7 @@ async fn ensure_tables(pool: &SqlitePool) {
         }
         log_message("Preloaded relays initialized (including Umbrel Private Relay at ws://100.72.15.19:4848 for connectivity testing)");
     }
-    log_message("Database tables ready — v1.0.1 production baseline restored with all endpoints");
+    log_message("Database tables ready — v1.0.1 production baseline with port-bind + compile + right-pane-scroll fixes");
 }
 
 async fn perform_sync(pool: &SqlitePool) {
@@ -292,7 +292,7 @@ async fn get_events(State(state): State<Arc<AppState>>, Path(npub_id): Path<i64>
         };
         EventPreview {
             id: row.get("id"),
-            kind: row.get("kind") as u16,
+            kind: row.get::<i64, _>("kind") as u16,
             kind_name: "Text Note".to_string(),
             preview,
             created_at: chrono::DateTime::from_timestamp(row.get::<i64, _>("created_at"), 0)
@@ -480,7 +480,23 @@ async fn main() {
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    log_message("🚀 Nostr Relay Dashboard v1.0.1 (fixed) starting on http://0.0.0.0:8080");
-    log_message("All buttons (Sync, Backup, Restore, Logs, Restart) now fully functional");
-    axum::serve(TcpListener::bind(&addr).await.unwrap(), app).await.unwrap();
+    log_message("🚀 Nostr Relay Dashboard v1.0.1 (right-pane-scroll fixed) starting...");
+
+    let listener = match TcpListener::bind(&addr).await {
+        Ok(listener) => listener,
+        Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+            log_message("❌ ERROR: Port 8080 is already in use");
+            log_message("   Another server instance is running (probably in tmux).");
+            log_message("   Run this command first: tmux kill-session -t nostr-relay-dashboard || true");
+            std::process::exit(1);
+        }
+        Err(e) => {
+            log_message(&format!("❌ Failed to bind to port 8080: {}", e));
+            std::process::exit(1);
+        }
+    };
+
+    log_message("✅ Server listening on http://0.0.0.0:8080");
+    log_message("All buttons functional + right pane now capped with clean scrollbar");
+    axum::serve(listener, app).await.expect("Server error");
 }
