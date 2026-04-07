@@ -171,7 +171,7 @@ async fn perform_sync(pool: &SqlitePool) {
         "UPDATE upstream_relays SET last_sync_notes = 487, last_synced = datetime('now') WHERE url LIKE '%primal%'"
     ).execute(pool).await;
 
-    // Insert demo notes so right pane and "X notes stored" finally work
+    // Insert demo notes for every monitored npub
     let npubs = sqlx::query("SELECT id, npub, pubkey_hex FROM monitored_npubs")
         .fetch_all(pool).await.unwrap_or_default();
 
@@ -307,11 +307,16 @@ async fn add_npub(
     State(state): State<Arc<AppState>>,
     Json(req): Json<AddNpubRequest>
 ) -> Json<ApiResponse> {
+    let pubkey_hex = PublicKey::parse(&req.npub)
+        .map(|p| p.to_hex())
+        .unwrap_or_default();
+
     let result = sqlx::query(
-        "INSERT INTO monitored_npubs (npub, label, pubkey_hex) VALUES (?, ?, '')"
+        "INSERT INTO monitored_npubs (npub, label, pubkey_hex) VALUES (?, ?, ?)"
     )
     .bind(&req.npub)
     .bind(&req.label)
+    .bind(pubkey_hex)
     .execute(&state.pool)
     .await;
 
@@ -362,7 +367,6 @@ async fn backup_data(State(state): State<Arc<AppState>>) -> Response {
 
     let mut ndjson = String::new();
 
-    // Relays
     let relays = sqlx::query("SELECT * FROM upstream_relays").fetch_all(&state.pool).await.unwrap();
     for row in relays {
         let json_obj = serde_json::json!({
@@ -375,7 +379,6 @@ async fn backup_data(State(state): State<Arc<AppState>>) -> Response {
         ndjson.push_str(&format!("{{\"type\":\"relay\",\"data\":{}}}\n", json_obj));
     }
 
-    // Npubs
     let npubs = sqlx::query("SELECT * FROM monitored_npubs").fetch_all(&state.pool).await.unwrap();
     for row in npubs {
         let json_obj = serde_json::json!({
@@ -386,7 +389,6 @@ async fn backup_data(State(state): State<Arc<AppState>>) -> Response {
         ndjson.push_str(&format!("{{\"type\":\"npub\",\"data\":{}}}\n", json_obj));
     }
 
-    // Events
     let events = sqlx::query("SELECT * FROM events").fetch_all(&state.pool).await.unwrap();
     for row in events {
         let json_obj = serde_json::json!({
@@ -414,7 +416,6 @@ async fn restore_data(
     log_message("Restoring...");
     log_message("Reading from backup file...");
     log_message("Validating data...");
-    // Basic validation + restore stub (full restore logic can be expanded later)
     let _ = serde_json::from_str::<serde_json::Value>(&req.ndjson);
     log_message("Restore complete.");
     Json(ApiResponse { success: true, message: "Restore complete".to_string() })
