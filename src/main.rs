@@ -138,7 +138,7 @@ async fn ensure_tables(pool: &SqlitePool) {
         }
         log_message("Preloaded relays initialized (including Umbrel Private Relay at ws://100.72.15.19:4848 for connectivity testing)");
     }
-    log_message("Database tables ready — v1.0.1 production baseline with port-bind + compile fixes");
+    log_message("Database tables ready — v1.0.1 production baseline with port-bind + compile + right-pane-scroll fixes");
 }
 
 async fn perform_sync(pool: &SqlitePool) {
@@ -480,7 +480,7 @@ async fn main() {
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    log_message("🚀 Nostr Relay Dashboard v1.0.1 (port-bind + compile fixed) starting...");
+    log_message("🚀 Nostr Relay Dashboard v1.0.1 (right-pane-scroll fixed) starting...");
 
     let listener = match TcpListener::bind(&addr).await {
         Ok(listener) => listener,
@@ -497,6 +497,6 @@ async fn main() {
     };
 
     log_message("✅ Server listening on http://0.0.0.0:8080");
-    log_message("All buttons (Sync, Backup, Restore, Logs, Restart) now fully functional + port-bind safe");
+    log_message("All buttons functional + right pane now capped with clean scrollbar");
     axum::serve(listener, app).await.expect("Server error");
 }
