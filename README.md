@@ -1,12 +1,19 @@
 Nostr Relay Dashboard v1.0.1
 
 Self-hosted Nostr event aggregator and personal backup dashboard. Pulls real Kind=1 text notes (signed by your monitored npubs) from configurable upstream relays, stores them locally, and gives you a clean, fast, mobile-friendly dark UI to browse, backup, and restore everything.
+
 Live on main branch (stable production release): http://159.89.49.4:8080
+
 Current Features (v1.0.1)
+
 •	Three-panel clean layout (exactly as locked in preferences):
+
 o	Left panel: Upstream relays (name/URL at top-left, “X notes pulled” + last-synced timestamp on right). Preloaded relays included (Damus, nos.lol, Primal, Nostr Wine, Snort, and Umbrel private relay at ws://100.72.15.19:4848).
+
 o	Middle panel: Monitored npubs (label top-left, truncated npub below, notes count + last-synced on right). Click any npub for purple highlight/ring. Add Npub section stacked at bottom.
+
 o	Right panel: Recent Kind=1 notes only for the selected npub. Human-readable previews, safe UTF-8 truncation with “...” for long notes. Panel is height-capped with a clean scrollbar so the page never becomes ridiculously long.
+
 •	Real Nostr pulling: Only Kind=1 text notes signed by your monitored npubs are fetched from enabled upstream relays using the official nostr-sdk.
 •	Sync options: Manual “Sync Now” button + automatic nightly sync (configurable via settings table).
 •	Full NDJSON backup & restore: One-click backup of all events. Restore accepts any valid NDJSON file with full validation and import count.
@@ -26,6 +33,7 @@ Bottom Control Bar (exactly as specified)
 •	Restore
 •	Download Logs
 •	Restart Server
+
 Quick Start (on your Droplet)
 1.	git clone https://github.com/cryptic-node/nostr-relay-dashboard.git
 2.	cd nostr-relay-dashboard
@@ -33,10 +41,5 @@ Quick Start (on your Droplet)
 4.	cargo build --release
 5.	tmux new-session -d -s nostr-relay-dashboard './target/release/nostr-relay-dashboard'
 6.	Open http://159.89.49.4:8080
-To update later: git pull origin main, kill tmux session, rebuild, and restart.
-Development Branch (v1.0.2)
-The develop branch is where we’ll continue adding the next improvements you decide on (we’ll keep v1.0.1 untouched on main until you say otherwise).
-Feedback & Next Steps
-This is now the perfect, stable v1.0.1 production version. Everything you asked for is locked in and working flawlessly.
-Let me know when you’ve pushed this to main (and updated the index.html version display if needed), and we can start fresh on v1.0.2 features on the develop branch!
-
+7.	To update later: git pull origin main, kill tmux session, rebuild, and restart.
+   
