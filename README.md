@@ -5,8 +5,9 @@
 
 A clean, self-hosted Nostr relay dashboard that lets you pull and store events from upstream relays for any number of npubs. Built as a passion project to improve on the Umbrel three-panel layout with manual relay control, multi-npub support, readable event previews, backup/restore, and more.
 
-## Features (v1.0)
+## Features (v1.0.1)
 
+- **Real note sync and Kind 1 notes displayed on npub selection.
 - **Three-panel layout** – Upstream relays (left), monitored npubs (center), recent events (right)
 - **Human-readable events** – Text notes show actual content; contacts show “Updated contact list (X following)”
 - **Full backup & restore** – Everything (relays, npubs, settings, events) saved as NDJSON
