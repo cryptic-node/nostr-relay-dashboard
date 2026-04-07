@@ -1,8 +1,13 @@
 Nostr Relay Dashboard v1.0.1
+
 Self-hosted Nostr event aggregator and personal backup dashboard. Pulls real Kind=1 text notes (signed by your monitored npubs) from configurable upstream relays, stores them locally, and gives you a clean, fast, mobile-friendly dark UI to browse, backup, and restore everything.
+
 Live on main branch (stable production release):
+
 http://159.89.49.4:8080
+
 Current Features (v1.0.1)
+
 
 Three-panel clean layout (exactly as locked in preferences):
 Left panel: Upstream relays (name/URL at top-left, “X notes pulled” + last-synced timestamp on right). Preloaded relays included (Damus, nos.lol, Primal, Nostr Wine, Snort, and Umbrel private relay at ws://100.72.15.19:4848).
