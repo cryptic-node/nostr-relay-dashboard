@@ -6,6 +6,7 @@ Live on main branch (stable production release):
 
 http://159.89.49.4:8080
 
+
 Current Features (v1.0.1)
 
 
@@ -29,22 +30,39 @@ Status messages under buttons are exact and green.
 Database: SQLite (dashboard.db) with proper indexes and migrations handled automatically on first run.
 Production ready: Runs forever in tmux, port-bind safety, graceful error handling, and clean shutdown.
 
+
 Bottom Control Bar (exactly as specified)
 
+
+
 Sync Now
+
 Backup (NDJSON)
+
 Restore
+
 Download Logs
+
 Restart Server
+
+
 
 Quick Start (on your Droplet)
 
+
+
 git clone https://github.com/cryptic-node/nostr-relay-dashboard.git
+
 cd nostr-relay-dashboard
+
 git checkout main (for v1.0.1 stable)
+
 cargo build --release
+
 tmux new-session -d -s nostr-relay-dashboard './target/release/nostr-relay-dashboard'
+
 Open http://159.89.49.4:8080
+
 
 To update later: git pull origin main, kill tmux session, rebuild, and restart.
 Development Branch (v1.0.2)
