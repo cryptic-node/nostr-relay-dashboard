@@ -7,7 +7,7 @@ A clean, self-hosted Nostr relay dashboard that lets you pull and store events f
 
 ## Features (v1.0.2)
 
-- **Real note sync and Kind 1 notes displayed on npub selection.
+- Real note sync and Kind 1 notes displayed on npub selection.
 - **Three-panel layout** – Upstream relays (left), monitored npubs (center), recent events (right)
 - **Human-readable events** – Text notes show actual content; contacts show “Updated contact list (X following)”
 - **Full backup & restore** – Everything (relays, npubs, settings, events) saved as NDJSON
