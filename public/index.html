@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nostr Relay Dashboard v1.0.1 (develop)</title>
+    <title>Nostr Relay Dashboard v1.0.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -23,7 +23,7 @@
         <div class="flex items-center justify-between mb-8">
             <div class="flex items-center gap-x-3">
                 <i class="fa-solid fa-bolt text-purple-400 text-3xl"></i>
-                <h1 class="text-3xl font-semibold">Nostr Relay Dashboard <span class="text-purple-400 text-xl font-medium">v1.0.1 (develop)</span></h1>
+                <h1 class="text-3xl font-semibold">Nostr Relay Dashboard <span class="text-purple-400 text-xl font-medium">v1.0.1</span></h1>
             </div>
             <div class="flex items-center gap-x-2 text-sm text-zinc-400">
                 <i class="fa-solid fa-circle-check text-emerald-400"></i>
@@ -38,7 +38,7 @@
                 <div id="relays-list" class="space-y-3 text-sm"></div>
             </div>
 
-            <!-- Middle: Npubs -->
+            <!-- Middle: Npubs (now polished to match relay style) -->
             <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800">
                 <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2"><i class="fa-solid fa-user-secret"></i> Monitored Npubs</h2>
                 <div id="npubs-list" class="space-y-3 text-sm"></div>
@@ -103,28 +103,30 @@
             const res = await fetch('/api/npubs');
             const npubsData = await res.json();
             const container = document.getElementById('npubs-list');
-            container.innerHTML = npubsData.map(n => `
+            container.innerHTML = npubsData.map(n => {
+                const displayNpub = n.npub.length > 24 
+                    ? n.npub.substring(0, 20) + '...' 
+                    : n.npub;
+                return `
                 <div onclick="selectNpub(${n.id}, '${n.npub}', '${n.label || ''}')" 
                      class="flex justify-between items-center bg-zinc-800 hover:bg-zinc-700 rounded-2xl px-4 py-3 cursor-pointer ${selectedNpubId === n.id ? 'npub-selected' : ''}">
-                    <div class="flex items-center gap-x-3">
-                        <i class="fa-solid fa-circle-user"></i>
-                        <div>
-                            <div class="font-medium">${n.label || 'Unnamed'}</div>
-                            <div class="text-zinc-300 text-xs truncate">${n.npub}</div>
-                        </div>
+                    <div>
+                        <div class="font-medium">${n.label || 'Unnamed'}</div>
+                        <div class="text-zinc-400 truncate max-w-[220px]">${displayNpub}</div>
                     </div>
                     <div class="text-right">
                         <div class="text-emerald-400">${n.notes_stored} notes stored</div>
+                        <div class="text-zinc-400 text-[10px]">${n.last_synced || 'never'}</div>
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
 
         async function selectNpub(id, npub, label) {
             selectedNpubId = id;
             document.getElementById('selected-npub-name').textContent = label || npub.substring(0, 12) + '...';
             await fetchNotes();
-            await fetchNpubs();  // re-render to apply highlight
+            await fetchNpubs();
         }
 
         async function fetchNotes() {
@@ -191,7 +193,6 @@
             fetchRelays();
             fetchNpubs();
             setInterval(() => { fetchRelays(); fetchNpubs(); }, 30000);
-            console.log('%c✅ V1.1 — panic fixed + selection restored', 'color: #a78bfa; font-weight: bold');
         };
     </script>
 </body>
