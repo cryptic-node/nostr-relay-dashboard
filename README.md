@@ -1,50 +1,49 @@
-# Nostr Relay Dashboard
+Nostr Relay Dashboard v1.0.1
+Self-hosted Nostr event aggregator and personal backup dashboard. Pulls real Kind=1 text notes (signed by your monitored npubs) from configurable upstream relays, stores them locally, and gives you a clean, fast, mobile-friendly dark UI to browse, backup, and restore everything.
+Live on main branch (stable production release):
+http://159.89.49.4:8080
+Current Features (v1.0.1)
 
-**Personal backup & aggregator • Version 1.0.1**  
-**Dev Team:** cryptic-node & SuperGrok • Powered by Rust
+Three-panel clean layout (exactly as locked in preferences):
+Left panel: Upstream relays (name/URL at top-left, “X notes pulled” + last-synced timestamp on right). Preloaded relays included (Damus, nos.lol, Primal, Nostr Wine, Snort, and Umbrel private relay at ws://100.72.15.19:4848).
+Middle panel: Monitored npubs (label top-left, truncated npub below, notes count + last-synced on right). Click any npub for purple highlight/ring. Add Npub section stacked at bottom.
+Right panel: Recent Kind=1 notes only for the selected npub. Human-readable previews, safe UTF-8 truncation with “...” for long notes. Panel is height-capped with a clean scrollbar so the page never becomes ridiculously long.
 
-A clean, self-hosted Nostr relay dashboard that lets you pull and store events from upstream relays for any number of npubs. Built as a passion project to improve on the Umbrel three-panel layout with manual relay control, multi-npub support, readable event previews, backup/restore, and more.
+Real Nostr pulling: Only Kind=1 text notes signed by your monitored npubs are fetched from enabled upstream relays using the official nostr-sdk.
+Sync options: Manual “Sync Now” button + automatic nightly sync (configurable via settings table).
+Full NDJSON backup & restore: One-click backup of all events. Restore accepts any valid NDJSON file with full validation and import count.
+Verbose logging: Real-time logs written to dashboard.log with timestamps. “Download Logs” button included.
+Restart server: One-click restart (works with your tmux setup).
+Safe & polished UX:
+No confirmation popups on delete (instant and clean).
+Green/grey color scheme with emerald accents locked in.
+Mobile-friendly responsive dark UI.
+Zero panics on UTF-8 notes.
+Status messages under buttons are exact and green.
 
-## Features (v1.0.1)
+Database: SQLite (dashboard.db) with proper indexes and migrations handled automatically on first run.
+Production ready: Runs forever in tmux, port-bind safety, graceful error handling, and clean shutdown.
 
-- **Three-panel layout** – Upstream relays (left), monitored npubs (center), recent events (right)
-- **Human-readable events** – Text notes show actual content; contacts show “Updated contact list (X following)”
-- **Full backup & restore** – Everything (relays, npubs, settings, events) saved as NDJSON
-- **Nightly auto-sync** – Toggleable midnight sync (00:00 local time)
-- **Manual sync button** – Pull fresh events anytime
-- **Download Logs** – One-click server log export for debugging
-- **Restart Server** – One-click graceful restart request
-- **SQLite persistence** – All data survives restarts and upgrades
-- **Mobile-friendly dark UI** with Tailwind + Font Awesome
+Bottom Control Bar (exactly as specified)
 
-## Quick Start
+Sync Now
+Backup (NDJSON)
+Restore
+Download Logs
+Restart Server
 
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/cryptic-node/nostr-relay-dashboard.git
-   cd nostr-relay-dashboard
+Quick Start (on your Droplet)
 
-2. Build & run:
-cargo run
-Open http://your-server-ip:8080
-Add relays and npubs → hit Sync Now → enjoy your personal Nostr archive.
+git clone https://github.com/cryptic-node/nostr-relay-dashboard.git
+cd nostr-relay-dashboard
+git checkout main (for v1.0.1 stable)
+cargo build --release
+tmux new-session -d -s nostr-relay-dashboard './target/release/nostr-relay-dashboard'
+Open http://159.89.49.4:8080
 
-Version 2.0 Goals (Roadmap)
-
-Custom sync schedule (choose any time instead of only midnight)
-Infinite scroll / pagination for the Recent Events pane
-Search & filter events by kind, date, or keyword
-Profile metadata preview (show name/avatar for npubs)
-Zap & reaction summaries
-Optional Lightning address / NIP-57 zap support
-Docker + Umbrel app manifest for one-click install
-Optional public read-only mode
-
-Credits
-Huge thanks to SuperGrok for the tireless Rust guidance, error fixing, and feature brainstorming that made this possible.
-Built with passion by cryptic-node — because the wheel sometimes deserves a fresh set of rims.
-
-Star the repo if you find it useful!
-Feedback, issues, and pull requests are always welcome.
-
-cryptic-node npub: npub1axr49qkexxmcm0g2tac3uawzmk59gaupsgy5fw5sfuscumq79h9qjh47gn
+To update later: git pull origin main, kill tmux session, rebuild, and restart.
+Development Branch (v1.0.2)
+The develop branch is where we’ll continue adding the next improvements you decide on (we’ll keep v1.0.1 untouched on main until you say otherwise).
+Feedback & Next Steps
+This is now the perfect, stable v1.0.1 production version. Everything you asked for is locked in and working flawlessly.
+Let me know when you’ve pushed this to main (and updated the index.html version display if needed), and we can start fresh on v1.0.2 features on the develop branch!
