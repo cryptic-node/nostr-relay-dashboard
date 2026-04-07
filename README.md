@@ -3,13 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-        body { font-family: 'Inter', system_ui, sans-serif; }
-        .panel { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        .status-green { color: #10b981; }
-        .prose h1, .prose h2 { font-weight: 600; }
-    </style>
+    
 </head>
 <body class="bg-zinc-950 text-zinc-100">
     <div class="max-w-4xl mx-auto p-8">
