@@ -22,7 +22,7 @@ A clean, self-hosted Nostr relay dashboard that lets you pull and store events f
 
 1. Clone the repo:
    ```bash
-   git clone https://github.com/cryptic-node/nostr-relay-dashboard.git
+   git clone https://github.com/cryptic-node/nostr-relay-dashboard.git develop
    cd nostr-relay-dashboard
 
 2. Build & run:
