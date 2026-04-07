@@ -11,7 +11,7 @@ use axum::{
     Json, Router,
 };
 use chrono::{Local, Timelike};
-use nostr_sdk::{ClientBuilder, Filter, Kind, PublicKey, Timestamp, nips::nip19::Nip19};
+use nostr_sdk::{ClientBuilder, Filter, FromBech32, Kind, PublicKey, Timestamp, nips::nip19::Nip19};
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePool, Row};
 use tokio::net::TcpListener;
@@ -173,7 +173,7 @@ async fn perform_sync(pool: &SqlitePool) {
                 for event in events {
                     let event_id = event.id.to_hex();
                     let content = event.content;
-                    let created_at = event.created_at.as_u64() as i64;
+                    let created_at = event.created_at.as_secs() as i64;  // deprecated as_u64 fixed
 
                     let _ = sqlx::query(
                         "INSERT OR IGNORE INTO events (id, pubkey, kind, content, created_at) VALUES (?, ?, 1, ?, ?)"
@@ -296,9 +296,9 @@ async fn delete_relay(State(state): State<Arc<AppState>>, Path(id): Path<i64>) -
 }
 
 async fn add_npub(State(state): State<Arc<AppState>>, Json(payload): Json<AddNpubRequest>) -> Json<ApiResponse> {
-    let pubkey_hex = match Nip19::from_bech32(&payload.npub) {
-        Ok(Nip19::Pubkey(pk)) => pk.to_hex(),
-        _ => payload.npub.clone(),
+    let pubkey_hex = match PublicKey::from_bech32(&payload.npub) {
+        Ok(pk) => pk.to_hex(),
+        Err(_) => payload.npub.clone(),  // fallback for hex pubkey or invalid input
     };
     let result = sqlx::query("INSERT OR IGNORE INTO monitored_npubs (npub, label, pubkey_hex) VALUES (?, ?, ?)")
         .bind(&payload.npub)
@@ -328,7 +328,7 @@ async fn restore(_state: State<Arc<AppState>>, _payload: Json<RestoreRequest>) -
     Json(ApiResponse { success: true, message: "Restore complete.".to_string() })
 }
 
-async fn download_logs() -> Response {
+async fn download_logs() -> impl IntoResponse {
     match fs::read_to_string("dashboard.log") {
         Ok(content) => {
             let headers = [(header::CONTENT_TYPE, "text/plain"), (header::CONTENT_DISPOSITION, "attachment; filename=\"dashboard.log\"")];
