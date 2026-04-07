@@ -10,7 +10,11 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
         body { font-family: 'Inter', system_ui, sans-serif; }
         .panel { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        .npub-selected { background-color: rgb(139 92 246); color: white; ring: 2px rgb(167 139 250); }
+        .npub-selected { 
+            background-color: rgb(139 92 246); 
+            color: white; 
+            box-shadow: 0 0 0 3px rgb(167 139 250); 
+        }
     </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100">
@@ -76,7 +80,6 @@
 
     <script>
         let selectedNpubId = null;
-        let npubsData = [];
 
         async function fetchRelays() {
             const res = await fetch('/api/relays');
@@ -98,15 +101,16 @@
 
         async function fetchNpubs() {
             const res = await fetch('/api/npubs');
-            npubsData = await res.json();
+            const npubsData = await res.json();
             const container = document.getElementById('npubs-list');
             container.innerHTML = npubsData.map(n => `
-                <div onclick="selectNpub(${n.id}, '${n.npub}', '${n.label || ''}')" class="flex justify-between items-center bg-zinc-800 hover:bg-zinc-700 rounded-2xl px-4 py-3 cursor-pointer ${selectedNpubId === n.id ? 'npub-selected' : ''}">
+                <div onclick="selectNpub(${n.id}, '${n.npub}', '${n.label || ''}')" 
+                     class="flex justify-between items-center bg-zinc-800 hover:bg-zinc-700 rounded-2xl px-4 py-3 cursor-pointer ${selectedNpubId === n.id ? 'npub-selected' : ''}">
                     <div class="flex items-center gap-x-3">
                         <i class="fa-solid fa-circle-user"></i>
                         <div>
                             <div class="font-medium">${n.label || 'Unnamed'}</div>
-                            <div class="text-purple-300 text-xs truncate">${n.npub}</div>
+                            <div class="text-zinc-300 text-xs truncate">${n.npub}</div>
                         </div>
                     </div>
                     <div class="text-right">
@@ -120,7 +124,7 @@
             selectedNpubId = id;
             document.getElementById('selected-npub-name').textContent = label || npub.substring(0, 12) + '...';
             await fetchNotes();
-            fetchNpubs();
+            await fetchNpubs();  // re-render to apply highlight
         }
 
         async function fetchNotes() {
@@ -133,7 +137,7 @@
                     ${note.preview}
                     <div class="text-zinc-400 text-xs mt-3 flex justify-between">
                         <span>${note.created_at}</span>
-                        <span class="text-purple-400">kind ${note.kind}</span>
+                        <span class="text-emerald-400">kind ${note.kind}</span>
                     </div>
                 </div>
             `).join('');
@@ -187,7 +191,7 @@
             fetchRelays();
             fetchNpubs();
             setInterval(() => { fetchRelays(); fetchNpubs(); }, 30000);
-            console.log('%c✅ V1.1 real note pulling active on develop branch — compilation fixed', 'color: #a78bfa; font-weight: bold');
+            console.log('%c✅ V1.1 — panic fixed + selection restored', 'color: #a78bfa; font-weight: bold');
         };
     </script>
 </body>
