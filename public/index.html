@@ -28,7 +28,7 @@
             </div>
             <div class="flex items-center gap-x-2 text-sm text-zinc-400">
                 <i class="fa-solid fa-circle-check text-emerald-400"></i>
-                <span id="status" class="font-medium status-green">Ready • Real pulling active • Port-bind fixed</span>
+                <span id="status" class="font-medium status-green">Ready • Real pulling active • All fixes applied</span>
             </div>
         </div>
 
@@ -273,8 +273,7 @@
         window.onload = async () => {
             await fetchRelays();
             await fetchNpubs();
-            // Preload Umbrel relay is already in DB from v1.0.1
-            console.log('%c✅ v1.0.1 fully fixed — Sync, Backup, Restore, Logs, Restart + port-bind safe', 'color:#10b981; font-weight:bold');
+            console.log('%c✅ v1.0.1 fully fixed — Sync, Backup, Restore, Logs, Restart + port-bind + compile safe', 'color:#10b981; font-weight:bold');
         };
     </script>
 </body>
