@@ -11,13 +11,14 @@ use tower_http::services::ServeDir;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
-use nostr_sdk::{Client, Filter, Kind, PublicKey, Timestamp};
+use nostr_sdk::{Client, ClientBuilder, Filter, Kind, PublicKey, Timestamp};
 use chrono::Local;
 use serde_json::{self, Value};
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Deserialize)]
 struct AddNpubRequest {
@@ -126,7 +127,7 @@ async fn ensure_tables(pool: &SqlitePool) {
 async fn perform_sync(pool: &SqlitePool) {
     log_message("=== REAL SYNC STARTED ===");
 
-    let client = Client::new();
+    let client = ClientBuilder::new().build();
 
     let relays: Vec<String> = sqlx::query_scalar("SELECT url FROM upstream_relays WHERE enabled = 1")
         .fetch_all(pool).await.unwrap_or_default();
@@ -158,7 +159,7 @@ async fn perform_sync(pool: &SqlitePool) {
             .kind(Kind::TextNote)
             .since(Timestamp::now() - 604800); // last 7 days
 
-        match client.get_events(vec![filter], Some(500)).await {
+        match client.fetch_events(filter, Duration::from_secs(10)).await {
             Ok(events) => {
                 let count = events.len();
                 log_message(&format!("→ Found {} new notes for {}", count, npub));
