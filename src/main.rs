@@ -128,7 +128,6 @@ async fn perform_sync(pool: &SqlitePool) {
 
     let client = Client::new();
 
-    // Add all enabled relays
     let relays: Vec<String> = sqlx::query_scalar("SELECT url FROM upstream_relays WHERE enabled = 1")
         .fetch_all(pool).await.unwrap_or_default();
     for url in &relays {
@@ -137,7 +136,6 @@ async fn perform_sync(pool: &SqlitePool) {
     }
     let _ = client.connect().await;
 
-    // Get all monitored npubs
     let npubs = sqlx::query("SELECT npub, pubkey_hex FROM monitored_npubs")
         .fetch_all(pool).await.unwrap_or_default();
 
@@ -185,7 +183,6 @@ async fn perform_sync(pool: &SqlitePool) {
         }
     }
 
-    // Update relay counters
     let _ = sqlx::query("UPDATE upstream_relays SET last_sync_notes = last_sync_notes + ?, last_synced = datetime('now')")
         .bind(total_new_notes as i64)
         .execute(pool).await;
@@ -193,22 +190,26 @@ async fn perform_sync(pool: &SqlitePool) {
     log_message(&format!("=== REAL SYNC COMPLETE — {} new notes pulled and stored ===", total_new_notes));
 }
 
-async fn get_relays(State(state): State<Arc<AppState>>) -> Json<Vec<serde_json::Value>> { /* unchanged from previous working version */ 
+async fn get_relays(State(state): State<Arc<AppState>>) -> Json<Vec<serde_json::Value>> {
     let relays = sqlx::query("SELECT id, url, name, enabled, preloaded, last_sync_notes, last_synced FROM upstream_relays")
         .fetch_all(&state.pool).await.unwrap_or_default();
-    let json: Vec<serde_json::Value> = relays.into_iter().map(|row| serde_json::json!({
-        "id": row.get::<i64, _>("id"),
-        "url": row.get::<String, _>("url"),
-        "name": row.get::<Option<String>, _>("name"),
-        "enabled": row.get::<i64, _>("enabled") != 0,
-        "preloaded": row.get::<i64, _>("preloaded") != 0,
-        "last_sync_notes": row.get::<Option<i64>, _>("last_sync_notes").unwrap_or(0),
-        "last_synced": row.get::<Option<String>, _>("last_synced").unwrap_or_default(),
-    })).collect();
+
+    let json: Vec<serde_json::Value> = relays.into_iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<i64, _>("id"),
+            "url": row.get::<String, _>("url"),
+            "name": row.get::<Option<String>, _>("name"),
+            "enabled": row.get::<i64, _>("enabled") != 0,
+            "preloaded": row.get::<i64, _>("preloaded") != 0,
+            "last_sync_notes": row.get::<Option<i64>, _>("last_sync_notes").unwrap_or(0),
+            "last_synced": row.get::<Option<String>, _>("last_synced").unwrap_or_default(),
+        })
+    }).collect();
+
     Json(json)
 }
 
-async fn get_npubs(State(state): State<Arc<AppState>>) -> Json<Vec<NpubResponse>> { /* unchanged */ 
+async fn get_npubs(State(state): State<Arc<AppState>>) -> Json<Vec<NpubResponse>> {
     let npubs = sqlx::query(
         "SELECT n.id, n.npub, n.label, n.last_synced,
                 COALESCE(COUNT(e.id), 0) as notes_stored,
@@ -225,22 +226,40 @@ async fn get_npubs(State(state): State<Arc<AppState>>) -> Json<Vec<NpubResponse>
         notes_stored: row.get("notes_stored"),
         following_count: row.get("following_count"),
     }).collect();
+
     Json(json)
 }
 
-async fn get_events(Query(params): Query<HashMap<String, String>>, State(state): State<Arc<AppState>>) -> Json<Vec<EventPreview>> { /* unchanged */ 
-    let npub_str = match params.get("npub") { Some(n) => n.clone(), None => return Json(vec![]), };
-    let pubkey = match PublicKey::parse(&npub_str) { Ok(pk) => pk, Err(_) => return Json(vec![]), };
+async fn get_events(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<Arc<AppState>>
+) -> Json<Vec<EventPreview>> {
+    let npub_str = match params.get("npub") {
+        Some(n) => n.clone(),
+        None => return Json(vec![]),
+    };
+
+    let pubkey = match PublicKey::parse(&npub_str) {
+        Ok(pk) => pk,
+        Err(_) => return Json(vec![]),
+    };
+
     let pubkey_hex = pubkey.to_hex();
 
     let events = sqlx::query(
         "SELECT id, kind, content, datetime(created_at, 'unixepoch') AS created_at_formatted
          FROM events WHERE pubkey = ? AND kind = 1 ORDER BY created_at DESC LIMIT 50"
-    ).bind(pubkey_hex).fetch_all(&state.pool).await.unwrap_or_default();
+    )
+    .bind(pubkey_hex)
+    .fetch_all(&state.pool).await.unwrap_or_default();
 
     let previews: Vec<EventPreview> = events.into_iter().map(|row| {
         let content: String = row.get("content");
-        let preview = if content.len() > 280 { content.chars().take(280).collect::<String>() + "…" } else { content };
+        let preview = if content.len() > 280 {
+            content.chars().take(280).collect::<String>() + "…"
+        } else {
+            content
+        };
         EventPreview {
             id: row.get("id"),
             kind: row.get::<i64, _>("kind") as u16,
@@ -249,12 +268,14 @@ async fn get_events(Query(params): Query<HashMap<String, String>>, State(state):
             created_at: row.get("created_at_formatted"),
         }
     }).collect();
+
     Json(previews)
 }
 
-// The rest of the file (add_relay, add_npub, delete_relay, delete_npub, trigger_sync, backup_data, restore_data, download_logs, main) is exactly the same as the last working V1.0 version — no changes needed.
-
-async fn add_relay(State(state): State<Arc<AppState>>, Json(req): Json<AddRelayRequest>) -> Json<ApiResponse> {
+async fn add_relay(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<AddRelayRequest>
+) -> Json<ApiResponse> {
     let result = sqlx::query("INSERT INTO upstream_relays (url, name, enabled, preloaded) VALUES (?, ?, 1, 0)")
         .bind(&req.url).bind(&req.name).execute(&state.pool).await;
     match result {
@@ -263,7 +284,10 @@ async fn add_relay(State(state): State<Arc<AppState>>, Json(req): Json<AddRelayR
     }
 }
 
-async fn add_npub(State(state): State<Arc<AppState>>, Json(req): Json<AddNpubRequest>) -> Json<ApiResponse> {
+async fn add_npub(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<AddNpubRequest>
+) -> Json<ApiResponse> {
     let pubkey_hex = PublicKey::parse(&req.npub).map(|p| p.to_hex()).unwrap_or_default();
     let result = sqlx::query("INSERT INTO monitored_npubs (npub, label, pubkey_hex) VALUES (?, ?, ?)")
         .bind(&req.npub).bind(&req.label).bind(pubkey_hex).execute(&state.pool).await;
@@ -273,13 +297,19 @@ async fn add_npub(State(state): State<Arc<AppState>>, Json(req): Json<AddNpubReq
     }
 }
 
-async fn delete_relay(Path(id): Path<i64>, State(state): State<Arc<AppState>>) -> Json<ApiResponse> {
+async fn delete_relay(
+    Path(id): Path<i64>,
+    State(state): State<Arc<AppState>>
+) -> Json<ApiResponse> {
     let _ = sqlx::query("DELETE FROM upstream_relays WHERE id = ?").bind(id).execute(&state.pool).await;
     log_message(&format!("Relay deleted ID {}", id));
     Json(ApiResponse { success: true, message: "Relay deleted".to_string() })
 }
 
-async fn delete_npub(Path(id): Path<i64>, State(state): State<Arc<AppState>>) -> Json<ApiResponse> {
+async fn delete_npub(
+    Path(id): Path<i64>,
+    State(state): State<Arc<AppState>>
+) -> Json<ApiResponse> {
     let _ = sqlx::query("DELETE FROM monitored_npubs WHERE id = ?").bind(id).execute(&state.pool).await;
     log_message(&format!("Npub deleted ID {}", id));
     Json(ApiResponse { success: true, message: "Npub deleted".to_string() })
@@ -290,7 +320,7 @@ async fn trigger_sync(State(state): State<Arc<AppState>>) -> Json<ApiResponse> {
     Json(ApiResponse { success: true, message: "Sync complete".to_string() })
 }
 
-async fn backup_data(State(state): State<Arc<AppState>>) -> Response { /* unchanged from last working version */ 
+async fn backup_data(State(state): State<Arc<AppState>>) -> Response {
     log_message("Backing up...");
     log_message("Backing up user settings...");
     log_message("Backing up relays...");
@@ -331,12 +361,19 @@ async fn backup_data(State(state): State<Arc<AppState>>) -> Response { /* unchan
         });
         ndjson.push_str(&format!("{{\"type\":\"event\",\"data\":{}}}\n", json_obj));
     }
+
     let body = ndjson.into_bytes();
-    let headers = [(header::CONTENT_TYPE, "application/json"), (header::CONTENT_DISPOSITION, "attachment; filename=\"nostr-dashboard-backup.ndjson\"")];
+    let headers = [
+        (header::CONTENT_TYPE, "application/json"),
+        (header::CONTENT_DISPOSITION, "attachment; filename=\"nostr-dashboard-backup.ndjson\""),
+    ];
     (headers, body).into_response()
 }
 
-async fn restore_data(State(state): State<Arc<AppState>>, Json(req): Json<RestoreRequest>) -> Json<ApiResponse> {
+async fn restore_data(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<RestoreRequest>
+) -> Json<ApiResponse> {
     log_message("Restoring...");
     log_message("Reading from backup file...");
     log_message("Validating data...");
@@ -344,28 +381,36 @@ async fn restore_data(State(state): State<Arc<AppState>>, Json(req): Json<Restor
     let lines: Vec<&str> = req.ndjson.lines().collect();
     for line in lines {
         if line.trim().is_empty() { continue; }
-        let parsed: Value = match serde_json::from_str(line) { Ok(v) => v, Err(_) => continue };
+        let parsed: Value = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
         let typ = parsed["type"].as_str().unwrap_or("");
         let data = &parsed["data"];
 
         match typ {
             "relay" => {
                 let _ = sqlx::query("INSERT OR IGNORE INTO upstream_relays (url, name, enabled, preloaded) VALUES (?, ?, ?, ?)")
-                    .bind(data["url"].as_str().unwrap_or("")).bind(data["name"].as_str())
+                    .bind(data["url"].as_str().unwrap_or(""))
+                    .bind(data["name"].as_str())
                     .bind(data["enabled"].as_bool().unwrap_or(true) as i64)
                     .bind(data["preloaded"].as_bool().unwrap_or(false) as i64)
                     .execute(&state.pool).await;
             }
             "npub" => {
                 let _ = sqlx::query("INSERT OR IGNORE INTO monitored_npubs (npub, label, pubkey_hex) VALUES (?, ?, '')")
-                    .bind(data["npub"].as_str().unwrap_or("")).bind(data["label"].as_str())
+                    .bind(data["npub"].as_str().unwrap_or(""))
+                    .bind(data["label"].as_str())
                     .execute(&state.pool).await;
             }
             "event" => {
                 let _ = sqlx::query("INSERT OR IGNORE INTO events (id, pubkey, kind, content, created_at) VALUES (?, ?, ?, ?, ?)")
-                    .bind(data["id"].as_str().unwrap_or("")).bind(data["pubkey"].as_str().unwrap_or(""))
-                    .bind(data["kind"].as_i64().unwrap_or(1)).bind(data["content"].as_str().unwrap_or(""))
-                    .bind(data["created_at"].as_i64().unwrap_or(0)).execute(&state.pool).await;
+                    .bind(data["id"].as_str().unwrap_or(""))
+                    .bind(data["pubkey"].as_str().unwrap_or(""))
+                    .bind(data["kind"].as_i64().unwrap_or(1))
+                    .bind(data["content"].as_str().unwrap_or(""))
+                    .bind(data["created_at"].as_i64().unwrap_or(0))
+                    .execute(&state.pool).await;
             }
             _ => {}
         }
@@ -381,4 +426,33 @@ async fn download_logs(_state: State<Arc<AppState>>) -> Vec<u8> {
 
 #[tokio::main]
 async fn main() {
-    let pool = Sql
+    let pool = SqlitePool::connect("sqlite:dashboard.db?mode=rwc")
+        .await
+        .expect("Failed to connect to SQLite database. Check directory permissions.");
+
+    ensure_tables(&pool).await;
+
+    let state = Arc::new(AppState { pool: pool.clone() });
+
+    log_message("Server started successfully");
+
+    let app = Router::new()
+        .route("/api/relays", get(get_relays))
+        .route("/api/npubs", get(get_npubs))
+        .route("/api/events", get(get_events))
+        .route("/api/relay", post(add_relay))
+        .route("/api/npub", post(add_npub))
+        .route("/api/relay/:id", delete(delete_relay))
+        .route("/api/npub/:id", delete(delete_npub))
+        .route("/api/sync", post(trigger_sync))
+        .route("/api/backup", post(backup_data))
+        .route("/api/restore", post(restore_data))
+        .route("/api/logs", get(download_logs))
+        .nest_service("/", ServeDir::new("public"))
+        .with_state(state);
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    println!("✅ Preloaded 5 default relays");
+    println!("🚀 Server running on http://0.0.0.0:8080");
+    axum::serve(TcpListener::bind(&addr).await.unwrap(), app).await.unwrap();
+}
