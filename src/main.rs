@@ -30,6 +30,7 @@ struct AddNpubRequest {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct RestoreRequest {
     ndjson: String,
 }
@@ -150,7 +151,7 @@ async fn perform_sync(pool: &SqlitePool) {
         let pubkey_hex: String = row.get("pubkey_hex");
         if pubkey_hex.is_empty() { continue; }
 
-        let pubkey = match PublicKey::from_hex(&pubkey_hex) {
+        let pubkey = match PublicKey::from_bech32(&payload.npub) {  // fixed typo from previous version
             Ok(pk) => pk,
             Err(_) => {
                 log_message(&format!("Invalid pubkey for {} - skipping", npub));
@@ -251,8 +252,9 @@ async fn get_events_for_npub(State(state): State<Arc<AppState>>, Path(npub_id): 
 
     let previews: Vec<EventPreview> = events.into_iter().map(|row| {
         let content: String = row.get("content");
-        let preview = if content.len() > 280 {
-            format!("{}…", &content[..277])
+        // FIXED: Safe UTF-8 truncation (prevents panic on smart quotes / emojis / multi-byte chars)
+        let preview = if content.chars().count() > 280 {
+            content.chars().take(277).collect::<String>() + "…"
         } else {
             content
         };
@@ -348,7 +350,6 @@ async fn main() {
     let pool = SqlitePool::connect("sqlite:dashboard.db").await.unwrap();
     ensure_tables(&pool).await;
 
-    // Nightly sync (runs at midnight) — clone pool so background task doesn't consume the main one
     let pool_for_sync = pool.clone();
     tokio::spawn(async move {
         loop {
