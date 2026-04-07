@@ -11,14 +11,13 @@ use tower_http::services::ServeDir;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
-use nostr_sdk::{Client, ClientBuilder, Filter, Kind, PublicKey, Timestamp};
+use nostr_sdk::{ClientBuilder, Filter, Kind, PublicKey, Timestamp};
 use chrono::Local;
 use serde_json::{self, Value};
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::sync::Arc;
-use std::time::Duration;
 
 #[derive(Deserialize)]
 struct AddNpubRequest {
@@ -157,9 +156,9 @@ async fn perform_sync(pool: &SqlitePool) {
         let filter = Filter::new()
             .authors(vec![pubkey])
             .kind(Kind::TextNote)
-            .since(Timestamp::now() - 604800); // last 7 days
+            .since(Timestamp::now() - 604800);
 
-        match client.fetch_events(filter, Duration::from_secs(10)).await {
+        match client.fetch_events(filter, std::time::Duration::from_secs(10)).await {
             Ok(events) => {
                 let count = events.len();
                 log_message(&format!("→ Found {} new notes for {}", count, npub));
@@ -167,7 +166,7 @@ async fn perform_sync(pool: &SqlitePool) {
                 for event in events {
                     let event_id = event.id.to_hex();
                     let content = event.content;
-                    let created_at = event.created_at.as_i64();
+                    let created_at = event.created_at.as_u64() as i64;
 
                     let _ = sqlx::query(
                         "INSERT OR IGNORE INTO events (id, pubkey, kind, content, created_at) VALUES (?, ?, 1, ?, ?)"
