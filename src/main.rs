@@ -11,7 +11,7 @@ use axum::{
     Json, Router,
 };
 use chrono::{Local, Timelike};
-use nostr_sdk::{ClientBuilder, Filter, FromBech32, Kind, PublicKey, Timestamp, nips::nip19::Nip19};
+use nostr_sdk::{ClientBuilder, Filter, FromBech32, Kind, PublicKey, Timestamp};
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePool, Row};
 use tokio::net::TcpListener;
@@ -173,7 +173,7 @@ async fn perform_sync(pool: &SqlitePool) {
                 for event in events {
                     let event_id = event.id.to_hex();
                     let content = event.content;
-                    let created_at = event.created_at.as_secs() as i64;  // deprecated as_u64 fixed
+                    let created_at = event.created_at.as_secs() as i64;
 
                     let _ = sqlx::query(
                         "INSERT OR IGNORE INTO events (id, pubkey, kind, content, created_at) VALUES (?, ?, 1, ?, ?)"
@@ -298,7 +298,7 @@ async fn delete_relay(State(state): State<Arc<AppState>>, Path(id): Path<i64>) -
 async fn add_npub(State(state): State<Arc<AppState>>, Json(payload): Json<AddNpubRequest>) -> Json<ApiResponse> {
     let pubkey_hex = match PublicKey::from_bech32(&payload.npub) {
         Ok(pk) => pk.to_hex(),
-        Err(_) => payload.npub.clone(),  // fallback for hex pubkey or invalid input
+        Err(_) => payload.npub.clone(),
     };
     let result = sqlx::query("INSERT OR IGNORE INTO monitored_npubs (npub, label, pubkey_hex) VALUES (?, ?, ?)")
         .bind(&payload.npub)
@@ -348,12 +348,13 @@ async fn main() {
     let pool = SqlitePool::connect("sqlite:dashboard.db").await.unwrap();
     ensure_tables(&pool).await;
 
-    // Nightly sync (runs at midnight)
+    // Nightly sync (runs at midnight) — clone pool so background task doesn't consume the main one
+    let pool_for_sync = pool.clone();
     tokio::spawn(async move {
         loop {
             let now = Local::now();
             if now.hour() == 0 && now.minute() == 0 {
-                let pool_clone = pool.clone();
+                let pool_clone = pool_for_sync.clone();
                 perform_sync(&pool_clone).await;
             }
             tokio::time::sleep(std::time::Duration::from_secs(60)).await;
