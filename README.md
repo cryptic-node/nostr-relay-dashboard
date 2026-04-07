@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-</head>
-<body class="bg-zinc-950 text-zinc-100">
+
     <div class="max-w-4xl mx-auto p-8">
         <!-- Header -->
         <div class="flex items-center justify-between mb-10 border-b border-zinc-800 pb-8">
@@ -114,5 +107,4 @@
             </div>
         </div>
     </div>
-</body>
-</html>
+
