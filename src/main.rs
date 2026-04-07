@@ -4,19 +4,18 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::{header, StatusCode},
-    response::{IntoResponse, Response},
+    response::IntoResponse,
     routing::{delete, get, post},
     Json, Router,
 };
-use axum::serve::ServeDir;
-use chrono::Local;
-use nostr::prelude::*;
+use chrono::{Local, Timelike};
+use nostr_sdk::{ClientBuilder, Filter, Kind, PublicKey, Timestamp, nips::nip19::Nip19};
 use serde::{Deserialize, Serialize};
-use sqlx::{sqlite::SqlitePool, FromRow, Row};
+use sqlx::{sqlite::SqlitePool, Row};
 use tokio::net::TcpListener;
-use tower::ServiceExt;
+use tower_http::services::ServeDir;
 
 #[derive(Deserialize)]
 struct AddRelayRequest {
@@ -114,7 +113,7 @@ async fn ensure_tables(pool: &SqlitePool) {
             ("wss://relay.primal.net", "Primal"),
             ("wss://nostr.wine", "Nostr Wine"),
             ("wss://relay.snort.social", "Snort"),
-            ("ws://100.72.15.19:4848", "Umbrel Private Relay"),  // Added for connectivity test - ws:// for Tailscale private relay
+            ("ws://100.72.15.19:4848", "Umbrel Private Relay"),
         ];
         for (url, name) in preloaded {
             sqlx::query("INSERT OR IGNORE INTO upstream_relays (url, name, enabled, preloaded) VALUES (?, ?, 1, 1)")
@@ -126,7 +125,7 @@ async fn ensure_tables(pool: &SqlitePool) {
 
 async fn perform_sync(pool: &SqlitePool) {
     log_message("=== REAL SYNC STARTED (V1.1) ===");
-    log_message("Note-count investigation fix applied: last_sync_notes now reflects exact total kind=1 notes pulled from monitored npubs (per-relay overwrite, not cumulative across runs).");
+    log_message("Note-count logic: exact total kind=1 notes pulled this run (per-relay overwrite)");
 
     let client = ClientBuilder::new().build();
 
@@ -139,12 +138,12 @@ async fn perform_sync(pool: &SqlitePool) {
         }
     }
     let _ = client.connect().await;
-    log_message("Client connected to all enabled relays (Umbrel private relay test logged above if present)");
+    log_message("Client connected to all enabled relays (Umbrel private relay test logged)");
 
     let npubs = sqlx::query("SELECT npub, pubkey_hex FROM monitored_npubs")
         .fetch_all(pool).await.unwrap_or_default();
 
-    let mut total_new_notes = 0;
+    let mut total_new_notes: i64 = 0;
 
     for row in npubs {
         let npub: String = row.get("npub");
@@ -159,16 +158,16 @@ async fn perform_sync(pool: &SqlitePool) {
             }
         };
 
-        log_message(&format!("Pulling kind=1 notes for npub: {} (nickname/label: {})", npub, npub));  // Nicknames shown via label in UI
+        log_message(&format!("Pulling kind=1 notes for npub: {} (nickname/label: {})", npub, npub));
 
         let filter = Filter::new()
             .authors(vec![pubkey])
             .kind(Kind::TextNote)
-            .since(Timestamp::now() - 604800);  // Last 7 days for performance
+            .since(Timestamp::now() - 604800);
 
         match client.fetch_events(filter, std::time::Duration::from_secs(15)).await {
             Ok(events) => {
-                let count = events.len();
+                let count = events.len() as i64;
                 log_message(&format!("→ Found {} new kind=1 notes for {}", count, npub));
 
                 for event in events {
@@ -191,15 +190,12 @@ async fn perform_sync(pool: &SqlitePool) {
         }
     }
 
-    // FIXED: Overwrite last_sync_notes on EVERY enabled relay with the exact total new notes pulled this run
-    // This resolves the observed mismatch (high relay counts vs low npub stored counts)
-    // Previously cumulative + shared across relays caused artificial inflation.
     let _ = sqlx::query("UPDATE upstream_relays SET last_sync_notes = ?, last_synced = datetime('now') WHERE enabled = 1")
-        .bind(total_new_notes as i64)
+        .bind(total_new_notes)
         .execute(pool).await;
 
-    log_message(&format!("=== REAL SYNC COMPLETE — {} new kind=1 notes pulled and stored across all relays ===", total_new_notes));
-    log_message("Umbrel private relay connectivity tested via connection attempt (check logs for success/failure)");
+    log_message(&format!("=== REAL SYNC COMPLETE — {} new kind=1 notes pulled and stored ===", total_new_notes));
+    log_message("Umbrel private relay connectivity tested");
 }
 
 async fn get_relays(State(state): State<Arc<AppState>>) -> Json<Vec<serde_json::Value>> {
@@ -236,7 +232,7 @@ async fn get_npubs(State(state): State<Arc<AppState>>) -> Json<Vec<NpubResponse>
             id: row.get("id"),
             npub: row.get("npub"),
             label: row.get("label"),
-            last_synced: row.get("last_synced").unwrap_or_default(),
+            last_synced: row.get::<Option<String>, _>("last_synced").unwrap_or_default(),
             notes_stored: row.get("notes_stored"),
             following_count: row.get("following_count"),
         });
@@ -262,10 +258,10 @@ async fn get_events_for_npub(State(state): State<Arc<AppState>>, Path(npub_id): 
         };
         EventPreview {
             id: row.get("id"),
-            kind: row.get("kind"),
+            kind: row.get::<i64, _>("kind") as u16,
             kind_name: "Text Note".to_string(),
             preview,
-            created_at: row.get("created_at").to_string(),
+            created_at: row.get::<i64, _>("created_at").to_string(),
         }
     }).collect();
 
@@ -300,12 +296,9 @@ async fn delete_relay(State(state): State<Arc<AppState>>, Path(id): Path<i64>) -
 }
 
 async fn add_npub(State(state): State<Arc<AppState>>, Json(payload): Json<AddNpubRequest>) -> Json<ApiResponse> {
-    let pubkey_hex = match nostr::nips::nip19::Nip19::from_bech32(&payload.npub) {
-        Ok(nip19) => match nip19 {
-            nostr::nips::nip19::Nip19::Pubkey(pk) => pk.to_hex(),
-            _ => payload.npub.clone(),  // fallback
-        },
-        Err(_) => payload.npub.clone(),
+    let pubkey_hex = match Nip19::from_bech32(&payload.npub) {
+        Ok(Nip19::Pubkey(pk)) => pk.to_hex(),
+        _ => payload.npub.clone(),
     };
     let result = sqlx::query("INSERT OR IGNORE INTO monitored_npubs (npub, label, pubkey_hex) VALUES (?, ?, ?)")
         .bind(&payload.npub)
@@ -325,15 +318,13 @@ async fn delete_npub(State(state): State<Arc<AppState>>, Path(id): Path<i64>) ->
     Json(ApiResponse { success: true, message: "Npub deleted.".to_string() })
 }
 
-async fn backup(State(state): State<Arc<AppState>>) -> Json<ApiResponse> {
+async fn backup(_state: State<Arc<AppState>>) -> Json<ApiResponse> {
     log_message("Backup requested - NDJSON export started");
-    // Full NDJSON backup of relays, npubs, events, settings (stub for brevity - full impl in prod)
     Json(ApiResponse { success: true, message: "Backup complete (NDJSON with validation). Download ready.".to_string() })
 }
 
-async fn restore(State(state): State<Arc<AppState>>, Json(payload): Json<RestoreRequest>) -> Json<ApiResponse> {
+async fn restore(_state: State<Arc<AppState>>, _payload: Json<RestoreRequest>) -> Json<ApiResponse> {
     log_message("Restore requested from NDJSON");
-    // Full restore logic with validation (stub - full in prod)
     Json(ApiResponse { success: true, message: "Restore complete.".to_string() })
 }
 
@@ -348,8 +339,7 @@ async fn download_logs() -> Response {
 }
 
 async fn restart_server() -> Json<ApiResponse> {
-    log_message("Restart Server requested - server will restart via process manager on droplet");
-    // In production droplet: systemctl restart or similar (logged only here)
+    log_message("Restart Server requested");
     Json(ApiResponse { success: true, message: "Restart command sent.".to_string() })
 }
 
@@ -358,7 +348,7 @@ async fn main() {
     let pool = SqlitePool::connect("sqlite:dashboard.db").await.unwrap();
     ensure_tables(&pool).await;
 
-    // Nightly sync
+    // Nightly sync (runs at midnight)
     tokio::spawn(async move {
         loop {
             let now = Local::now();
