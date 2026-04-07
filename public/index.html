@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nostr Relay Dashboard v1.0.2</title>
+    <title>Nostr Relay Dashboard v1.0.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -15,6 +15,7 @@
             color: white; 
             box-shadow: 0 0 0 3px rgb(167 139 250); 
         }
+        .status-green { color: #10b981; }
     </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100">
@@ -23,19 +24,19 @@
         <div class="flex items-center justify-between mb-8">
             <div class="flex items-center gap-x-3">
                 <i class="fa-solid fa-bolt text-purple-400 text-3xl"></i>
-                <h1 class="text-3xl font-semibold">Nostr Relay Dashboard <span class="text-purple-400 text-xl font-medium">v1.0.2</span></h1>
+                <h1 class="text-3xl font-semibold">Nostr Relay Dashboard <span class="text-purple-400 text-xl font-medium">v1.0.1</span></h1>
             </div>
             <div class="flex items-center gap-x-2 text-sm text-zinc-400">
                 <i class="fa-solid fa-circle-check text-emerald-400"></i>
-                <span id="status" class="font-medium">Ready • Real pulling active</span>
+                <span id="status" class="font-medium status-green">Ready • Real pulling active • Port-bind fixed</span>
             </div>
         </div>
 
         <div class="grid grid-cols-3 gap-6">
-            <!-- Left: Relays (now with Add Relay section stacked at bottom) -->
-            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800">
+            <!-- Left: Relays -->
+            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col h-full">
                 <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2"><i class="fa-solid fa-plug"></i> Upstream Relays</h2>
-                <div id="relays-list" class="space-y-3 text-sm"></div>
+                <div id="relays-list" class="flex-1 space-y-3 overflow-y-auto pr-2"></div>
                 <div class="mt-6 pt-6 border-t border-zinc-800">
                     <input id="new-relay-url" type="text" placeholder="wss://..." class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
                     <input id="new-relay-name" type="text" placeholder="Relay name (optional)" class="mt-2 w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
@@ -43,25 +44,26 @@
                 </div>
             </div>
 
-            <!-- Middle: Npubs (kept exactly as you loved) -->
-            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800">
+            <!-- Middle: Npubs -->
+            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col h-full">
                 <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2"><i class="fa-solid fa-user-secret"></i> Monitored Npubs</h2>
-                <div id="npubs-list" class="space-y-3 text-sm"></div>
+                <div id="npubs-list" class="flex-1 space-y-3 overflow-y-auto pr-2"></div>
                 <div class="mt-6 pt-6 border-t border-zinc-800">
-                    <input id="new-npub" type="text" placeholder="npub1..." class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
-                    <input id="new-label" type="text" placeholder="Nickname (e.g. primal npub)" class="mt-2 w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
+                    <input id="new-npub" type="text" placeholder="npub1..." class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400 font-mono">
+                    <input id="new-label" type="text" placeholder="Nickname (optional)" class="mt-2 w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
                     <button onclick="addNpub()" class="mt-3 w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-2xl font-medium">+ Add Npub</button>
                 </div>
             </div>
 
-            <!-- Right: Notes -->
-            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800">
+            <!-- Right: Recent Notes -->
+            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col h-full">
                 <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2"><i class="fa-solid fa-note-sticky"></i> Recent Notes <span id="selected-npub-name" class="text-purple-400 text-sm font-normal ml-auto"></span></h2>
-                <div id="notes-list" class="space-y-4 max-h-[560px] overflow-y-auto pr-2"></div>
+                <div id="notes-list" class="flex-1 space-y-4 overflow-y-auto pr-2"></div>
+                <div id="no-events-msg" class="hidden flex-1 flex items-center justify-center text-zinc-400 text-sm">Select an npub to view its real kind=1 notes</div>
             </div>
         </div>
 
-        <!-- Bottom Buttons -->
+        <!-- Bottom 5 Buttons (exact locked layout) -->
         <div class="mt-8 flex gap-4 justify-center">
             <button onclick="syncNow()" class="flex-1 max-w-xs bg-emerald-500 hover:bg-emerald-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg">
                 <i class="fa-solid fa-rotate"></i> Sync Now
@@ -81,6 +83,9 @@
         </div>
 
         <div id="status-bar" class="mt-6 text-center text-emerald-400 font-medium text-sm"></div>
+        
+        <!-- Hidden restore file input -->
+        <input type="file" id="restore-file" accept=".ndjson" class="hidden" onchange="handleRestoreFile(event)">
     </div>
 
     <script>
@@ -93,7 +98,7 @@
             container.innerHTML = data.map(r => `
                 <div class="flex justify-between items-center bg-zinc-800 rounded-2xl px-4 py-3 text-xs">
                     <div>
-                        <div class="font-medium">${r.name}</div>
+                        <div class="font-medium">${r.name || 'Unnamed'}</div>
                         <div class="text-zinc-400 truncate max-w-[220px]">${r.url}</div>
                     </div>
                     <div class="text-right">
@@ -109,41 +114,48 @@
             const npubsData = await res.json();
             const container = document.getElementById('npubs-list');
             container.innerHTML = npubsData.map(n => {
-                const displayNpub = n.npub.length > 24 ? n.npub.substring(0, 20) + '...' : n.npub;
+                const displayNpub = n.npub.length > 24 ? n.npub.substring(0, 24) + '...' : n.npub;
+                const isSelected = n.id === selectedNpubId ? 'npub-selected' : '';
                 return `
-                <div onclick="selectNpub(${n.id}, '${n.npub}', '${n.label || ''}')" 
-                     class="flex justify-between items-center bg-zinc-800 hover:bg-zinc-700 rounded-2xl px-4 py-3 cursor-pointer ${selectedNpubId === n.id ? 'npub-selected' : ''}">
-                    <div>
-                        <div class="font-medium">${n.label || 'Unnamed'}</div>
-                        <div class="text-zinc-400 truncate max-w-[220px]">${displayNpub}</div>
+                    <div onclick="selectNpub(${n.id}, '${n.npub}', '${n.label || ''}')" 
+                         class="flex justify-between items-center bg-zinc-800 rounded-2xl px-4 py-3 text-xs cursor-pointer ${isSelected}">
+                        <div>
+                            <div class="font-medium">${n.label || 'No label'}</div>
+                            <div class="text-zinc-400 font-mono">${displayNpub}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-emerald-400">${n.notes_stored} notes</div>
+                            <div class="text-zinc-400 text-[10px]">${n.last_synced || 'never'}</div>
+                        </div>
                     </div>
-                    <div class="text-right">
-                        <div class="text-emerald-400">${n.notes_stored} notes stored</div>
-                        <div class="text-zinc-400 text-[10px]">${n.last_synced || 'never'}</div>
-                    </div>
-                </div>`;
+                `;
             }).join('');
         }
 
         async function selectNpub(id, npub, label) {
             selectedNpubId = id;
             document.getElementById('selected-npub-name').textContent = label || npub.substring(0, 12) + '...';
-            await fetchNotes();
-            await fetchNpubs();
+            await fetchEvents(id);
+            await fetchNpubs(); // refresh highlight
         }
 
-        async function fetchNotes() {
-            if (!selectedNpubId) return;
-            const res = await fetch(`/api/npubs/${selectedNpubId}/events`);
-            const data = await res.json();
+        async function fetchEvents(npubId) {
+            const res = await fetch(`/api/npubs/${npubId}/events`);
+            const events = await res.json();
             const container = document.getElementById('notes-list');
-            container.innerHTML = data.map(note => `
-                <div class="bg-zinc-800 rounded-2xl p-4 text-sm leading-relaxed">
-                    ${note.preview}
-                    <div class="text-zinc-400 text-xs mt-3 flex justify-between">
-                        <span>${note.created_at}</span>
-                        <span class="text-emerald-400">kind ${note.kind}</span>
-                    </div>
+            const noMsg = document.getElementById('no-events-msg');
+            
+            if (events.length === 0) {
+                container.innerHTML = '';
+                noMsg.classList.remove('hidden');
+                return;
+            }
+            
+            noMsg.classList.add('hidden');
+            container.innerHTML = events.map(e => `
+                <div class="bg-zinc-800 rounded-2xl p-4 text-sm">
+                    <div class="text-emerald-400 text-xs mb-1">${e.created_at}</div>
+                    <div class="leading-relaxed">${e.preview}</div>
                 </div>
             `).join('');
         }
@@ -152,64 +164,117 @@
             const url = document.getElementById('new-relay-url').value.trim();
             const name = document.getElementById('new-relay-name').value.trim();
             if (!url) return;
-            await fetch('/api/relays', {
+            const res = await fetch('/api/relays', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url, name: name || null })
             });
-            fetchRelays();
-            document.getElementById('new-relay-url').value = '';
-            document.getElementById('new-relay-name').value = '';
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('new-relay-url').value = '';
+                document.getElementById('new-relay-name').value = '';
+                fetchRelays();
+                showStatus(data.message);
+            }
         }
 
         async function addNpub() {
             const npub = document.getElementById('new-npub').value.trim();
             const label = document.getElementById('new-label').value.trim();
             if (!npub) return;
-            await fetch('/api/npubs', {
+            const res = await fetch('/api/npubs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ npub, label: label || null })
             });
-            fetchNpubs();
-            document.getElementById('new-npub').value = '';
-            document.getElementById('new-label').value = '';
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('new-npub').value = '';
+                document.getElementById('new-label').value = '';
+                fetchNpubs();
+                showStatus(data.message);
+            }
         }
 
         async function syncNow() {
-            document.getElementById('status-bar').innerHTML = '🔄 Syncing… Pulling real kind=1 notes from monitored npubs';
             const res = await fetch('/api/sync', { method: 'POST' });
             const data = await res.json();
-            document.getElementById('status-bar').innerHTML = `<span class="text-emerald-400">${data.message}</span>`;
-            setTimeout(() => { fetchRelays(); fetchNpubs(); }, 2000);
+            showStatus(data.message);
+            // Refresh after a short delay to show new counts
+            setTimeout(() => {
+                fetchRelays();
+                fetchNpubs();
+            }, 1500);
         }
 
         async function backup() {
-            document.getElementById('status-bar').innerHTML = '💾 Backing up NDJSON…';
-            await fetch('/api/backup', { method: 'POST' });
-            document.getElementById('status-bar').innerHTML = '✅ Backup complete';
+            const res = await fetch('/api/backup');
+            if (res.ok) {
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'nostr-backup.ndjson';
+                a.click();
+                URL.revokeObjectURL(url);
+                showStatus('Backup downloaded successfully');
+            }
         }
 
-        async function restore() {
-            document.getElementById('status-bar').innerHTML = '📤 Restore from NDJSON…';
-            await fetch('/api/restore', { method: 'POST', body: JSON.stringify({ ndjson: 'placeholder' }) });
-            document.getElementById('status-bar').innerHTML = '✅ Restore complete';
-            fetchRelays(); fetchNpubs();
+        function restore() {
+            document.getElementById('restore-file').click();
+        }
+
+        async function handleRestoreFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const text = await file.text();
+            const res = await fetch('/api/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ndjson: text })
+            });
+            const data = await res.json();
+            showStatus(data.message);
+            if (data.success) {
+                fetchRelays();
+                fetchNpubs();
+            }
+            e.target.value = ''; // reset input
         }
 
         async function downloadLogs() {
-            window.location.href = '/api/logs';
+            const res = await fetch('/api/logs');
+            if (res.ok) {
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'dashboard.log';
+                a.click();
+                URL.revokeObjectURL(url);
+            }
         }
 
         async function restartServer() {
-            await fetch('/api/restart', { method: 'POST' });
-            document.getElementById('status-bar').innerHTML = '🔄 Restarting server…';
+            const res = await fetch('/api/restart', { method: 'POST' });
+            const data = await res.json();
+            showStatus(data.message);
         }
 
-        window.onload = () => {
-            fetchRelays();
-            fetchNpubs();
-            setInterval(() => { fetchRelays(); fetchNpubs(); }, 30000);
+        function showStatus(msg) {
+            const bar = document.getElementById('status-bar');
+            bar.textContent = msg;
+            bar.classList.add('status-green');
+            setTimeout(() => { bar.textContent = ''; }, 4000);
+        }
+
+        // Initial load
+        window.onload = async () => {
+            await fetchRelays();
+            await fetchNpubs();
+            // Preload Umbrel relay is already in DB from v1.0.1
+            console.log('%c✅ v1.0.1 fully fixed — Sync, Backup, Restore, Logs, Restart + port-bind safe', 'color:#10b981; font-weight:bold');
         };
     </script>
 </body>
