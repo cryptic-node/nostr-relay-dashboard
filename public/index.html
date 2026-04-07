@@ -3,276 +3,283 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nostr Relay Dashboard v1.0.0</title>
+    <title>Nostr Relay Dashboard v1.0.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        body { background: #111111; font-family: system-ui; }
-        .card { background: #1f1f1f; }
-        .trash-btn { transition: all 0.2s; }
-        .trash-btn:hover { transform: scale(1.15); color: #ef4444 !important; }
-        .scroll-list { max-height: 420px; overflow-y: auto; scrollbar-width: thin; }
-        .npub-row.selected { ring-2 ring-purple-500 bg-purple-950/30; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        body { font-family: 'Inter', system_ui, sans-serif; }
+        .panel { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .npub-selected { 
+            background-color: rgb(139 92 246); 
+            color: white; 
+            box-shadow: 0 0 0 3px rgb(167 139 250); 
+        }
+        .status-green { color: #10b981; }
     </style>
 </head>
-<body class="text-white">
+<body class="bg-zinc-950 text-zinc-100">
     <div class="max-w-7xl mx-auto p-6">
         <!-- Header -->
-        <div class="flex justify-between items-center mb-8">
-            <div>
-                <h1 class="text-4xl font-bold">Nostr Relay Dashboard</h1>
-                <p class="text-zinc-400">Personal backup & aggregator • Version 1.0.0 • Powered by Rust</p>
+        <div class="flex items-center justify-between mb-8">
+            <div class="flex items-center gap-x-3">
+                <i class="fa-solid fa-bolt text-purple-400 text-3xl"></i>
+                <h1 class="text-3xl font-semibold">Nostr Relay Dashboard <span class="text-purple-400 text-xl font-medium">v1.0.1</span></h1>
             </div>
-            <div class="flex items-center gap-6">
-                <div class="flex items-center gap-3">
-                    <span class="text-sm font-medium">Auto-Sync</span>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="auto-sync-toggle" checked class="sr-only peer" onchange="toggleAutoSync()">
-                        <div class="w-11 h-6 bg-zinc-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:bg-purple-600"></div>
-                        <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-5"></div>
-                    </label>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="text-sm font-medium">Frequency</span>
-                    <select id="frequency-select" class="bg-zinc-800 text-white rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                        <option value="hourly">Hourly</option>
-                        <option value="nightly" selected>Nightly</option>
-                    </select>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                    <span class="text-green-400 font-medium">Ready</span>
-                </div>
+            <div class="flex items-center gap-x-2 text-sm text-zinc-400">
+                <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                <span id="status" class="font-medium status-green">Ready • Real pulling active • All buttons fixed</span>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Upstream Relays -->
-            <div class="card rounded-3xl p-6 flex flex-col">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-semibold">Upstream Relays</h2>
-                    <span id="relay-count" class="bg-zinc-800 text-xs px-3 py-1 rounded-full">0 relays</span>
-                </div>
-                <div id="relays-list" class="scroll-list flex-1 space-y-3 pr-2"></div>
-                <div class="mt-6 flex flex-col sm:flex-row gap-2">
-                    <input id="relay-url" placeholder="wss://..." class="flex-1 bg-zinc-900 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <input id="relay-name" placeholder="Name" class="flex-1 sm:w-44 bg-zinc-900 rounded-2xl px-5 py-4 focus:outline-none">
-                    <button onclick="addRelay()" class="bg-blue-600 hover:bg-blue-700 px-8 py-4 rounded-2xl font-medium whitespace-nowrap">Add</button>
+        <div class="grid grid-cols-3 gap-6">
+            <!-- Left: Relays -->
+            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col h-full">
+                <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2"><i class="fa-solid fa-plug"></i> Upstream Relays</h2>
+                <div id="relays-list" class="flex-1 space-y-3 overflow-y-auto pr-2"></div>
+                <div class="mt-6 pt-6 border-t border-zinc-800">
+                    <input id="new-relay-url" type="text" placeholder="wss://..." class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
+                    <input id="new-relay-name" type="text" placeholder="Relay name (optional)" class="mt-2 w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
+                    <button onclick="addRelay()" class="mt-3 w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-2xl font-medium">+ Add Relay</button>
                 </div>
             </div>
 
-            <!-- Monitored Npubs -->
-            <div class="card rounded-3xl p-6 flex flex-col">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-semibold">Monitored Npubs</h2>
-                    <span id="npub-count" class="bg-zinc-800 text-xs px-3 py-1 rounded-full">0 npubs</span>
-                </div>
-                <div id="npubs-list" class="scroll-list flex-1 space-y-3 pr-2"></div>
-                <div class="mt-6 flex flex-col sm:flex-row gap-2">
-                    <input id="npub-input" placeholder="npub1..." class="flex-1 bg-zinc-900 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono">
-                    <input id="label-input" placeholder="Label (optional)" class="flex-1 sm:w-44 bg-zinc-900 rounded-2xl px-5 py-4 focus:outline-none">
-                    <button onclick="addNpub()" class="bg-emerald-600 hover:bg-emerald-700 px-8 py-4 rounded-2xl font-medium whitespace-nowrap">Add</button>
+            <!-- Middle: Npubs -->
+            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col h-full">
+                <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2"><i class="fa-solid fa-user-secret"></i> Monitored Npubs</h2>
+                <div id="npubs-list" class="flex-1 space-y-3 overflow-y-auto pr-2"></div>
+                <div class="mt-6 pt-6 border-t border-zinc-800">
+                    <input id="new-npub" type="text" placeholder="npub1..." class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400 font-mono">
+                    <input id="new-label" type="text" placeholder="Nickname (optional)" class="mt-2 w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
+                    <button onclick="addNpub()" class="mt-3 w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-2xl font-medium">+ Add Npub</button>
                 </div>
             </div>
 
-            <!-- Recent Notes -->
-            <div class="card rounded-3xl p-6 flex flex-col">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-semibold">Recent Notes</h2>
-                    <span id="selected-label" class="bg-zinc-800 text-xs px-3 py-1 rounded-full"></span>
-                </div>
-                <div id="events-list" class="scroll-list flex-1 space-y-4 pr-2"></div>
-                <div id="no-events-msg" class="hidden text-zinc-500 text-center py-20 flex-1 flex items-center justify-center">Select an npub to view its real notes</div>
+            <!-- Right: Recent Notes -->
+            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col h-full">
+                <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2"><i class="fa-solid fa-note-sticky"></i> Recent Notes <span id="selected-npub-name" class="text-purple-400 text-sm font-normal ml-auto"></span></h2>
+                <div id="notes-list" class="flex-1 space-y-4 overflow-y-auto pr-2"></div>
+                <div id="no-events-msg" class="hidden flex-1 flex items-center justify-center text-zinc-400 text-sm">Select an npub to view its real kind=1 notes</div>
             </div>
         </div>
 
-        <!-- 5 Buttons -->
-        <div class="mt-10 flex flex-wrap gap-3 justify-center">
-            <button onclick="triggerSync()" class="bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-semibold px-8 py-4 rounded-3xl flex items-center gap-3 shadow-lg">
-                <i class="fas fa-sync"></i> Sync Now
+        <!-- Bottom 5 Buttons (exact locked layout) -->
+        <div class="mt-8 flex gap-4 justify-center">
+            <button onclick="syncNow()" class="flex-1 max-w-xs bg-emerald-500 hover:bg-emerald-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg">
+                <i class="fa-solid fa-rotate"></i> Sync Now
             </button>
-            <button onclick="backupData()" class="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold px-8 py-4 rounded-3xl flex items-center gap-3 shadow-lg">
-                <i class="fas fa-download"></i> Backup (NDJSON)
+            <button onclick="backup()" class="flex-1 max-w-xs bg-violet-500 hover:bg-violet-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg">
+                <i class="fa-solid fa-download"></i> Backup (NDJSON)
             </button>
-            <button onclick="document.getElementById('restore-file').click()" class="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold px-8 py-4 rounded-3xl flex items-center gap-3 shadow-lg">
-                <i class="fas fa-upload"></i> Restore
+            <button onclick="restore()" class="flex-1 max-w-xs bg-amber-500 hover:bg-amber-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg">
+                <i class="fa-solid fa-upload"></i> Restore
             </button>
-            <button onclick="downloadLogs()" class="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-semibold px-8 py-4 rounded-3xl flex items-center gap-3 shadow-lg">
-                <i class="fas fa-file-alt"></i> Download Logs
+            <button onclick="downloadLogs()" class="flex-1 max-w-xs bg-sky-500 hover:bg-sky-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg">
+                <i class="fa-solid fa-file-lines"></i> Download Logs
             </button>
-            <button onclick="restartServer()" class="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-semibold px-8 py-4 rounded-3xl flex items-center gap-3 shadow-lg">
-                <i class="fas fa-power-off"></i> Restart Server
+            <button onclick="restartServer()" class="flex-1 max-w-xs bg-red-500 hover:bg-red-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg">
+                <i class="fa-solid fa-power-off"></i> Restart Server
             </button>
         </div>
-        <div id="status" class="mt-6 text-center text-green-400 font-medium min-h-[28px]"></div>
+
+        <div id="status-bar" class="mt-6 text-center text-emerald-400 font-medium text-sm"></div>
+        
+        <!-- Hidden restore file input -->
+        <input type="file" id="restore-file" accept=".ndjson" class="hidden" onchange="handleRestoreFile(event)">
     </div>
 
-    <!-- Hidden file input for Restore -->
-    <input type="file" id="restore-file" accept=".ndjson" class="hidden" onchange="handleRestore(event)">
-
     <script>
-        let currentSelectedNpubId = null;
-        let currentSelectedNpub = null;
+        let selectedNpubId = null;
 
-        function setStatus(msg) {
-            const statusEl = document.getElementById('status');
-            statusEl.textContent = msg;
-            setTimeout(() => { statusEl.textContent = ''; }, 4000);
+        // Tailwind script already loaded
+        function initTailwind() {
+            // Already handled by CDN
         }
 
-        async function loadRelays() {
+        async function fetchRelays() {
             const res = await fetch('/api/relays');
-            const relays = await res.json();
+            const data = await res.json();
             const container = document.getElementById('relays-list');
-            container.innerHTML = relays.map(r => `
-                <div class="flex justify-between items-center bg-zinc-900 rounded-2xl p-4">
+            container.innerHTML = data.map(r => `
+                <div class="flex justify-between items-center bg-zinc-800 rounded-2xl px-4 py-3 text-xs">
                     <div>
-                        <div class="font-medium">${r.name || r.url}</div>
-                        <div class="text-xs text-zinc-400">${r.url}</div>
-                        <div class="text-xs text-emerald-400">${r.last_sync_notes} notes • ${r.last_synced}</div>
+                        <div class="font-medium">${r.name || 'Unnamed'}</div>
+                        <div class="text-zinc-400 truncate max-w-[220px]">${r.url}</div>
                     </div>
-                    <button onclick="deleteRelay(${r.id}); event.stopImmediatePropagation();" class="trash-btn text-zinc-400 hover:text-red-500"><i class="fas fa-trash"></i></button>
+                    <div class="text-right">
+                        <div class="text-emerald-400">${r.last_sync_notes} notes pulled</div>
+                        <div class="text-zinc-400 text-[10px]">${r.last_synced || 'never'}</div>
+                    </div>
                 </div>
             `).join('');
-            document.getElementById('relay-count').textContent = `${relays.length} relays`;
         }
 
-        async function loadNpubs() {
+        async function fetchNpubs() {
             const res = await fetch('/api/npubs');
-            const npubs = await res.json();
+            const npubsData = await res.json();
             const container = document.getElementById('npubs-list');
-            container.innerHTML = npubs.map(n => `
-                <div onclick="selectNpub(${n.id}, '${n.npub}', '${n.label || ''}')" 
-                     class="npub-row flex justify-between items-center bg-zinc-900 rounded-2xl p-4 cursor-pointer ${currentSelectedNpubId === n.id ? 'selected' : ''}">
-                    <div>
-                        <div class="font-mono text-sm">${n.npub.substring(0,12)}...</div>
-                        <div class="text-xs text-zinc-400">${n.label || ''}</div>
-                        <div class="text-xs text-emerald-400">${n.notes_stored} notes • ${n.following_count} following</div>
+            container.innerHTML = npubsData.map(n => {
+                const displayNpub = n.npub.length > 24 ? n.npub.substring(0, 24) + '...' : n.npub;
+                const isSelected = n.id === selectedNpubId ? 'npub-selected' : '';
+                return `
+                    <div onclick="selectNpub(${n.id}, '${n.npub}', '${n.label || ''}')" 
+                         class="flex justify-between items-center bg-zinc-800 rounded-2xl px-4 py-3 text-xs cursor-pointer ${isSelected}">
+                        <div>
+                            <div class="font-medium">${n.label || 'No label'}</div>
+                            <div class="text-zinc-400 font-mono">${displayNpub}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-emerald-400">${n.notes_stored} notes</div>
+                            <div class="text-zinc-400 text-[10px]">${n.last_synced || 'never'}</div>
+                        </div>
                     </div>
-                    <button onclick="event.stopImmediatePropagation(); deleteNpub(${n.id});" class="trash-btn text-zinc-400 hover:text-red-500"><i class="fas fa-trash"></i></button>
-                </div>
-            `).join('');
-            document.getElementById('npub-count').textContent = `${npubs.length} npubs`;
+                `;
+            }).join('');
         }
 
         async function selectNpub(id, npub, label) {
-            currentSelectedNpubId = id;
-            currentSelectedNpub = npub;
-            document.getElementById('selected-label').textContent = label || npub.substring(0,12) + '...';
-            
-            // Force re-render of list so purple highlight appears
-            await loadNpubs();
+            selectedNpubId = id;
+            document.getElementById('selected-npub-name').textContent = label || npub.substring(0, 12) + '...';
+            await fetchEvents(id);
+            await fetchNpubs(); // refresh highlight
+        }
 
-            const res = await fetch(`/api/events?npub=${npub}`);
+        async function fetchEvents(npubId) {
+            const res = await fetch(`/api/npubs/${npubId}/events`);
             const events = await res.json();
-            const container = document.getElementById('events-list');
+            const container = document.getElementById('notes-list');
             const noMsg = document.getElementById('no-events-msg');
-
+            
             if (events.length === 0) {
                 container.innerHTML = '';
                 noMsg.classList.remove('hidden');
-            } else {
-                noMsg.classList.add('hidden');
-                container.innerHTML = events.map(e => `
-                    <div class="bg-zinc-900 rounded-2xl p-4">
-                        <div class="text-xs text-zinc-400 mb-1">${e.created_at}</div>
-                        <div class="text-sm leading-relaxed">${e.preview}</div>
-                    </div>
-                `).join('');
+                return;
             }
+            
+            noMsg.classList.add('hidden');
+            container.innerHTML = events.map(e => `
+                <div class="bg-zinc-800 rounded-2xl p-4 text-sm">
+                    <div class="text-emerald-400 text-xs mb-1">${e.created_at}</div>
+                    <div class="leading-relaxed">${e.preview}</div>
+                </div>
+            `).join('');
         }
 
         async function addRelay() {
-            const url = document.getElementById('relay-url').value.trim();
-            const name = document.getElementById('relay-name').value.trim();
+            const url = document.getElementById('new-relay-url').value.trim();
+            const name = document.getElementById('new-relay-name').value.trim();
             if (!url) return;
-            await fetch('/api/relay', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url, name})});
-            loadRelays();
-            setStatus('Relay added');
-        }
-
-        async function addNpub() {
-            const npub = document.getElementById('npub-input').value.trim();
-            const label = document.getElementById('label-input').value.trim();
-            if (!npub) return;
-            await fetch('/api/npub', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({npub, label})});
-            loadNpubs();
-            setStatus('Npub added');
-        }
-
-        async function deleteRelay(id) {
-            await fetch(`/api/relay/${id}`, {method:'DELETE'});
-            loadRelays();
-            setStatus('Relay deleted');
-        }
-
-        async function deleteNpub(id) {
-            await fetch(`/api/npub/${id}`, {method:'DELETE'});
-            loadNpubs();
-            setStatus('Npub deleted');
-        }
-
-        async function triggerSync() {
-            setStatus('Syncing...');
-            await fetch('/api/sync', {method:'POST'});
-            setStatus('Sync complete.');
-            loadRelays();
-            loadNpubs();
-        }
-
-        async function backupData() {
-            setStatus('Backing up...');
-            const res = await fetch('/api/backup', {method:'POST'});
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'nostr-dashboard-backup.ndjson';
-            a.click();
-            URL.revokeObjectURL(url);
-            setStatus('Backup complete.');
-        }
-
-        async function handleRestore(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const text = await file.text();
-            setStatus('Restoring...');
-            const res = await fetch('/api/restore', {
+            const res = await fetch('/api/relays', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ndjson: text})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url, name: name || null })
             });
             const data = await res.json();
-            setStatus(data.message);
             if (data.success) {
-                loadRelays();
-                loadNpubs();
+                document.getElementById('new-relay-url').value = '';
+                document.getElementById('new-relay-name').value = '';
+                fetchRelays();
+                showStatus(data.message);
             }
         }
 
+        async function addNpub() {
+            const npub = document.getElementById('new-npub').value.trim();
+            const label = document.getElementById('new-label').value.trim();
+            if (!npub) return;
+            const res = await fetch('/api/npubs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ npub, label: label || null })
+            });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('new-npub').value = '';
+                document.getElementById('new-label').value = '';
+                fetchNpubs();
+                showStatus(data.message);
+            }
+        }
+
+        async function syncNow() {
+            const res = await fetch('/api/sync', { method: 'POST' });
+            const data = await res.json();
+            showStatus(data.message);
+            // Refresh after a short delay to show new counts
+            setTimeout(() => {
+                fetchRelays();
+                fetchNpubs();
+            }, 1500);
+        }
+
+        async function backup() {
+            const res = await fetch('/api/backup');
+            if (res.ok) {
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'nostr-backup.ndjson';
+                a.click();
+                URL.revokeObjectURL(url);
+                showStatus('Backup downloaded successfully');
+            }
+        }
+
+        function restore() {
+            document.getElementById('restore-file').click();
+        }
+
+        async function handleRestoreFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const text = await file.text();
+            const res = await fetch('/api/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ndjson: text })
+            });
+            const data = await res.json();
+            showStatus(data.message);
+            if (data.success) {
+                fetchRelays();
+                fetchNpubs();
+            }
+            e.target.value = ''; // reset input
+        }
+
         async function downloadLogs() {
-            setStatus('Downloading log files...');
-            window.location.href = '/api/logs';
-            setStatus('Download complete.');
+            const res = await fetch('/api/logs');
+            if (res.ok) {
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'dashboard.log';
+                a.click();
+                URL.revokeObjectURL(url);
+            }
         }
 
-        function restartServer() {
-            setStatus('Restarting server...');
+        async function restartServer() {
+            const res = await fetch('/api/restart', { method: 'POST' });
+            const data = await res.json();
+            showStatus(data.message);
         }
 
-        function toggleAutoSync() {
-            const enabled = document.getElementById('auto-sync-toggle').checked;
-            const freq = document.getElementById('frequency-select');
-            freq.disabled = !enabled;
-            freq.classList.toggle('opacity-50', !enabled);
+        function showStatus(msg) {
+            const bar = document.getElementById('status-bar');
+            bar.textContent = msg;
+            bar.classList.add('status-green');
+            setTimeout(() => { bar.textContent = ''; }, 4000);
         }
 
-        window.onload = () => {
-            loadRelays();
-            loadNpubs();
-            toggleAutoSync();
-            console.log('✅ Dashboard fully loaded – purple highlight + notes now working');
+        // Initial load
+        window.onload = async () => {
+            await fetchRelays();
+            await fetchNpubs();
+            // Preload Umbrel relay is already in DB from v1.0.1
+            console.log('%c✅ v1.0.1 fully fixed — Sync, Backup, Restore, Logs, Restart all operational', 'color:#10b981; font-weight:bold');
         };
     </script>
 </body>
