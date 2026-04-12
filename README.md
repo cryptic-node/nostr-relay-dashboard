@@ -1,7 +1,7 @@
 # Nostr Relay Dashboard
 
 **Personal backup & aggregator • Version 1.0.3**  
-**Dev Team:** cryptic-node & SuperGrok • Proposed release bundle refined by ChatGPT • Powered by Rust
+**Dev Team:** cryptic-node, ChatGPT Pro & SuperGrok • Proposed release bundle refined by ChatGPT Pro • Powered by Rust
 
 A clean, self-hosted Nostr relay dashboard that lets you pull and store events from upstream relays for any number of npubs. This release keeps the existing three-panel feel, but fixes the parts that matter most for a trustworthy personal archive: real per-relay sync stats, safer frontend rendering, fuller backups, and a working Docker image.
 
