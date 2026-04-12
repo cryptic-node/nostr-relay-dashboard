@@ -1,0 +1,18 @@
+NRD v1.0.4 hardening candidate
+
+Included files:
+- Cargo.toml
+- Dockerfile
+- README.md
+- .gitignore
+- src/main.rs
+- public/index.html
+- deploy/Caddyfile.example
+- deploy/nrd.service
+
+Planned delta from v1.0.3:
+- default app bind host changed to 127.0.0.1
+- optional NRD_ADMIN_TOKEN protection for mutating and sensitive endpoints
+- stricter restore validation and payload-size guard
+- consistent JSON auth/validation errors
+- minimal UI support for admin-token retry prompts

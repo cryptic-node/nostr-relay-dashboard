@@ -1,0 +1,26 @@
+[Unit]
+Description=Nostr Relay Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nrd
+Group=nrd
+WorkingDirectory=/opt/nostr-relay-dashboard
+Environment=DATABASE_PATH=/opt/nostr-relay-dashboard/dashboard.db
+Environment=HOST=127.0.0.1
+Environment=PORT=8080
+# Uncomment and set your token to protect admin endpoints
+# Environment=NRD_ADMIN_TOKEN=change-me
+ExecStart=/opt/nostr-relay-dashboard/target/release/nostr-relay-dashboard
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/nostr-relay-dashboard
+
+[Install]
+WantedBy=multi-user.target

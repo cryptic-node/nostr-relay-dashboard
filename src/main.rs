@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    http::header,
+    http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
     Json, Router,
@@ -99,6 +99,12 @@ struct NpubRow {
 struct AppState {
     pool: SqlitePool,
 }
+
+const MAX_RESTORE_BYTES: usize = 5 * 1024 * 1024;
+const MAX_RESTORE_RECORDS: usize = 100_000;
+const MAX_NAME_LENGTH: usize = 80;
+const MAX_LABEL_LENGTH: usize = 80;
+const MAX_URL_LENGTH: usize = 512;
 
 fn log_message(message: &str) {
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -267,7 +273,7 @@ async fn ensure_tables(pool: &SqlitePool) {
         log_message("Preloaded public relays initialized");
     }
 
-    log_message("Database ready — v1.0.3 incremental sync + truthful relay stats + full backup");
+    log_message("Database ready — v1.0.4 hardening candidate");
 }
 
 async fn upsert_sync_state(
@@ -303,7 +309,7 @@ async fn upsert_sync_state(
 }
 
 async fn perform_sync(pool: &SqlitePool) {
-    log_message("=== SYNC STARTED (v1.0.3) ===");
+    log_message("=== SYNC STARTED (v1.0.4) ===");
 
     let relays: Vec<RelayRow> = sqlx::query(
         "SELECT id, url, name FROM upstream_relays WHERE enabled = 1 ORDER BY COALESCE(name, url)",
@@ -630,56 +636,76 @@ async fn get_events(
 
 async fn add_relay(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<AddRelayRequest>,
-) -> Json<ApiResponse> {
+) -> Response {
+    if let Some(response) = require_admin(&headers) {
+        return response;
+    }
+
+    let url = payload.url.trim();
+    if url.is_empty() {
+        return json_response(StatusCode::BAD_REQUEST, false, "Relay URL is required");
+    }
+    if url.len() > MAX_URL_LENGTH {
+        return json_response(StatusCode::BAD_REQUEST, false, "Relay URL is too long");
+    }
+    if !is_valid_relay_url(url) {
+        return json_response(StatusCode::BAD_REQUEST, false, "Relay URL must start with ws:// or wss://");
+    }
+
+    let trimmed_name = payload.name.as_deref().map(str::trim).filter(|value| !value.is_empty());
+    if trimmed_name.map(|value| value.chars().count() > MAX_NAME_LENGTH).unwrap_or(false) {
+        return json_response(StatusCode::BAD_REQUEST, false, "Relay name is too long");
+    }
+
     let result = sqlx::query(
         "INSERT OR IGNORE INTO upstream_relays (url, name, enabled, preloaded, last_sync_notes) VALUES (?, ?, 1, 0, 0)",
     )
-    .bind(payload.url.trim())
-    .bind(payload.name.as_ref().map(|name| name.trim()))
+    .bind(url)
+    .bind(trimmed_name)
     .execute(&state.pool)
     .await;
 
     match result {
         Ok(done) if done.rows_affected() > 0 => {
-            log_message(&format!("Added new relay: {}", payload.url.trim()));
-            Json(ApiResponse {
-                success: true,
-                message: "Relay added successfully".to_string(),
-            })
+            log_message(&format!("Added new relay: {}", url));
+            json_response(StatusCode::OK, true, "Relay added successfully")
         }
-        Ok(_) => Json(ApiResponse {
-            success: false,
-            message: "Relay already exists".to_string(),
-        }),
-        Err(error) => Json(ApiResponse {
-            success: false,
-            message: format!("Failed to add relay: {}", error),
-        }),
+        Ok(_) => json_response(StatusCode::CONFLICT, false, "Relay already exists"),
+        Err(error) => json_response(StatusCode::INTERNAL_SERVER_ERROR, false, format!("Failed to add relay: {}", error)),
     }
 }
 
 async fn add_npub(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<AddNpubRequest>,
-) -> Json<ApiResponse> {
+) -> Response {
+    if let Some(response) = require_admin(&headers) {
+        return response;
+    }
+
     let trimmed_npub = payload.npub.trim();
+    if trimmed_npub.is_empty() {
+        return json_response(StatusCode::BAD_REQUEST, false, "Npub is required");
+    }
+
+    let trimmed_label = payload.label.as_deref().map(str::trim).filter(|value| !value.is_empty());
+    if trimmed_label.map(|value| value.chars().count() > MAX_LABEL_LENGTH).unwrap_or(false) {
+        return json_response(StatusCode::BAD_REQUEST, false, "Label is too long");
+    }
 
     let pubkey = match PublicKey::from_bech32(trimmed_npub) {
         Ok(pk) => pk.to_hex(),
-        Err(_) => {
-            return Json(ApiResponse {
-                success: false,
-                message: "Invalid npub format".to_string(),
-            })
-        }
+        Err(_) => return json_response(StatusCode::BAD_REQUEST, false, "Invalid npub format"),
     };
 
     let result = sqlx::query(
         "INSERT OR IGNORE INTO monitored_npubs (npub, label, pubkey_hex) VALUES (?, ?, ?)",
     )
     .bind(trimmed_npub)
-    .bind(payload.label.as_ref().map(|label| label.trim()))
+    .bind(trimmed_label)
     .bind(pubkey)
     .execute(&state.pool)
     .await;
@@ -687,29 +713,24 @@ async fn add_npub(
     match result {
         Ok(done) if done.rows_affected() > 0 => {
             log_message(&format!("Added npub: {}", trimmed_npub));
-            Json(ApiResponse {
-                success: true,
-                message: "Npub added successfully".to_string(),
-            })
+            json_response(StatusCode::OK, true, "Npub added successfully")
         }
-        Ok(_) => Json(ApiResponse {
-            success: false,
-            message: "Npub already exists".to_string(),
-        }),
-        Err(error) => Json(ApiResponse {
-            success: false,
-            message: format!("Failed to add npub: {}", error),
-        }),
+        Ok(_) => json_response(StatusCode::CONFLICT, false, "Npub already exists"),
+        Err(error) => json_response(StatusCode::INTERNAL_SERVER_ERROR, false, format!("Failed to add npub: {}", error)),
     }
 }
 
 async fn toggle_relay(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<i64>,
     Json(payload): Json<ToggleRelayRequest>,
-) -> Json<ApiResponse> {
-    let enabled_value = if payload.enabled { 1 } else { 0 };
+) -> Response {
+    if let Some(response) = require_admin(&headers) {
+        return response;
+    }
 
+    let enabled_value = if payload.enabled { 1 } else { 0 };
     let result = sqlx::query("UPDATE upstream_relays SET enabled = ? WHERE id = ?")
         .bind(enabled_value)
         .bind(id)
@@ -720,26 +741,22 @@ async fn toggle_relay(
         Ok(done) if done.rows_affected() > 0 => {
             let action = if payload.enabled { "enabled" } else { "disabled" };
             log_message(&format!("Relay ID {} {}", id, action));
-            Json(ApiResponse {
-                success: true,
-                message: format!("Relay {}", action),
-            })
+            json_response(StatusCode::OK, true, format!("Relay {}", action))
         }
-        Ok(_) => Json(ApiResponse {
-            success: false,
-            message: "Relay not found".to_string(),
-        }),
-        Err(error) => Json(ApiResponse {
-            success: false,
-            message: format!("Failed to update relay: {}", error),
-        }),
+        Ok(_) => json_response(StatusCode::NOT_FOUND, false, "Relay not found"),
+        Err(error) => json_response(StatusCode::INTERNAL_SERVER_ERROR, false, format!("Failed to update relay: {}", error)),
     }
 }
 
 async fn delete_relay(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Json<ApiResponse> {
+) -> Response {
+    if let Some(response) = require_admin(&headers) {
+        return response;
+    }
+
     let _ = sqlx::query("DELETE FROM npub_relay_sync_state WHERE relay_id = ?")
         .bind(id)
         .execute(&state.pool)
@@ -752,27 +769,23 @@ async fn delete_relay(
 
     match result {
         Ok(done) if done.rows_affected() > 0 => {
-            log_message(&format!("Deleted relay ID {}", id));
-            Json(ApiResponse {
-                success: true,
-                message: "Relay deleted".to_string(),
-            })
+            log_message(&format!("Deleted relay ID {} (stored notes retained)", id));
+            json_response(StatusCode::OK, true, "Relay deleted (stored notes retained)")
         }
-        Ok(_) => Json(ApiResponse {
-            success: false,
-            message: "Relay not found".to_string(),
-        }),
-        Err(error) => Json(ApiResponse {
-            success: false,
-            message: format!("Failed to delete relay: {}", error),
-        }),
+        Ok(_) => json_response(StatusCode::NOT_FOUND, false, "Relay not found"),
+        Err(error) => json_response(StatusCode::INTERNAL_SERVER_ERROR, false, format!("Failed to delete relay: {}", error)),
     }
 }
 
 async fn delete_npub(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Json<ApiResponse> {
+) -> Response {
+    if let Some(response) = require_admin(&headers) {
+        return response;
+    }
+
     let _ = sqlx::query("DELETE FROM npub_relay_sync_state WHERE npub_id = ?")
         .bind(id)
         .execute(&state.pool)
@@ -785,39 +798,32 @@ async fn delete_npub(
 
     match result {
         Ok(done) if done.rows_affected() > 0 => {
-            log_message(&format!(
-                "Deleted npub ID {} (archive events retained for future re-add)",
-                id
-            ));
-            Json(ApiResponse {
-                success: true,
-                message: "Npub deleted (stored notes retained)".to_string(),
-            })
+            log_message(&format!("Deleted npub ID {} (archive events retained for future re-add)", id));
+            json_response(StatusCode::OK, true, "Npub deleted (stored notes retained)")
         }
-        Ok(_) => Json(ApiResponse {
-            success: false,
-            message: "Npub not found".to_string(),
-        }),
-        Err(error) => Json(ApiResponse {
-            success: false,
-            message: format!("Failed to delete npub: {}", error),
-        }),
+        Ok(_) => json_response(StatusCode::NOT_FOUND, false, "Npub not found"),
+        Err(error) => json_response(StatusCode::INTERNAL_SERVER_ERROR, false, format!("Failed to delete npub: {}", error)),
     }
 }
 
-async fn sync_now(State(state): State<Arc<AppState>>) -> Json<ApiResponse> {
+async fn sync_now(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if let Some(response) = require_admin(&headers) {
+        return response;
+    }
+
     tokio::spawn({
         let pool = state.pool.clone();
         async move { perform_sync(&pool).await }
     });
 
-    Json(ApiResponse {
-        success: true,
-        message: "Sync started in background — refresh relay stats in a few seconds".to_string(),
-    })
+    json_response(StatusCode::OK, true, "Sync started in background — refresh relay stats in a few seconds")
 }
 
-async fn backup_data(State(state): State<Arc<AppState>>) -> Response {
+async fn backup_data(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if let Some(response) = require_admin(&headers) {
+        return response;
+    }
+
     let relays = sqlx::query(
         "SELECT url, name, enabled, preloaded, last_sync_notes, last_synced, last_error FROM upstream_relays ORDER BY COALESCE(name, url)",
     )
@@ -870,7 +876,8 @@ async fn backup_data(State(state): State<Arc<AppState>>) -> Response {
             "last_synced": row.get::<Option<String>, _>("last_synced"),
             "last_error": row.get::<Option<String>, _>("last_error")
         });
-        ndjson.push_str(&format!("{}\n", json));
+        ndjson.push_str(&format!("{}
+", json));
     }
 
     for row in npubs {
@@ -881,7 +888,8 @@ async fn backup_data(State(state): State<Arc<AppState>>) -> Response {
             "pubkey_hex": row.get::<Option<String>, _>("pubkey_hex"),
             "last_synced": row.get::<Option<String>, _>("last_synced")
         });
-        ndjson.push_str(&format!("{}\n", json));
+        ndjson.push_str(&format!("{}
+", json));
     }
 
     for row in settings {
@@ -890,7 +898,8 @@ async fn backup_data(State(state): State<Arc<AppState>>) -> Response {
             "key": row.get::<String, _>("key"),
             "value": row.get::<String, _>("value")
         });
-        ndjson.push_str(&format!("{}\n", json));
+        ndjson.push_str(&format!("{}
+", json));
     }
 
     for row in events {
@@ -905,7 +914,8 @@ async fn backup_data(State(state): State<Arc<AppState>>) -> Response {
             "source_relay": row.get::<Option<String>, _>("source_relay"),
             "imported_at": row.get::<Option<String>, _>("imported_at")
         });
-        ndjson.push_str(&format!("{}\n", json));
+        ndjson.push_str(&format!("{}
+", json));
     }
 
     for row in sync_state {
@@ -919,38 +929,65 @@ async fn backup_data(State(state): State<Arc<AppState>>) -> Response {
             "last_error": row.get::<Option<String>, _>("last_error"),
             "updated_at": row.get::<Option<String>, _>("updated_at")
         });
-        ndjson.push_str(&format!("{}\n", json));
+        ndjson.push_str(&format!("{}
+", json));
     }
 
     let mut headers = header::HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        header::HeaderValue::from_static("application/x-ndjson"),
-    );
-    headers.insert(
-        header::CONTENT_DISPOSITION,
-        header::HeaderValue::from_static("attachment; filename=\"nostr-dashboard-backup.ndjson\""),
-    );
+    headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/x-ndjson"));
+    headers.insert(header::CONTENT_DISPOSITION, header::HeaderValue::from_static("attachment; filename="nostr-dashboard-backup.ndjson""));
 
     (headers, ndjson).into_response()
 }
 
 async fn restore_data(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<RestoreRequest>,
-) -> Json<ApiResponse> {
-    let records: Vec<serde_json::Value> = payload
-        .ndjson
-        .lines()
-        .filter_map(|line| {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                serde_json::from_str::<serde_json::Value>(trimmed).ok()
+) -> Response {
+    if let Some(response) = require_admin(&headers) {
+        return response;
+    }
+
+    if payload.ndjson.as_bytes().len() > MAX_RESTORE_BYTES {
+        return json_response(StatusCode::PAYLOAD_TOO_LARGE, false, format!("Restore rejected: payload exceeds {} MiB", MAX_RESTORE_BYTES / 1024 / 1024));
+    }
+
+    let mut records: Vec<serde_json::Value> = Vec::new();
+    let mut invalid_lines: Vec<usize> = Vec::new();
+    let mut unsupported_type_lines: Vec<usize> = Vec::new();
+
+    for (index, line) in payload.ndjson.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        match serde_json::from_str::<serde_json::Value>(trimmed) {
+            Ok(record) => {
+                if let Some(record_type) = record.get("type").and_then(|value| value.as_str()) {
+                    if !matches!(record_type, "relay" | "npub" | "setting" | "event" | "sync_state") {
+                        unsupported_type_lines.push(index + 1);
+                    }
+                }
+                records.push(record);
+                if records.len() > MAX_RESTORE_RECORDS {
+                    return json_response(StatusCode::PAYLOAD_TOO_LARGE, false, format!("Restore rejected: too many records (max {})", MAX_RESTORE_RECORDS));
+                }
             }
-        })
-        .collect();
+            Err(_) => invalid_lines.push(index + 1),
+        }
+    }
+
+    if !invalid_lines.is_empty() {
+        return json_response(StatusCode::BAD_REQUEST, false, format!("Restore rejected: invalid NDJSON on line(s) {}", format_line_numbers(&invalid_lines)));
+    }
+    if !unsupported_type_lines.is_empty() {
+        return json_response(StatusCode::BAD_REQUEST, false, format!("Restore rejected: unsupported record type on line(s) {}", format_line_numbers(&unsupported_type_lines)));
+    }
+    if records.is_empty() {
+        return json_response(StatusCode::BAD_REQUEST, false, "Restore rejected: no valid records found");
+    }
 
     let mut relays_imported = 0_i64;
     let mut npubs_imported = 0_i64;
@@ -960,10 +997,9 @@ async fn restore_data(
 
     for record in records.iter().filter(|record| record["type"] == "relay") {
         let url = record["url"].as_str().unwrap_or("").trim();
-        if url.is_empty() {
+        if url.is_empty() || !is_valid_relay_url(url) {
             continue;
         }
-
         let name = record["name"].as_str();
         let enabled = record["enabled"].as_bool().unwrap_or(true);
         let preloaded = record["preloaded"].as_bool().unwrap_or(false);
@@ -994,22 +1030,13 @@ async fn restore_data(
         .bind(last_error)
         .execute(&state.pool)
         .await;
-
-        if result.is_ok() {
-            relays_imported += 1;
-        }
+        if result.is_ok() { relays_imported += 1; }
     }
 
     for record in records.iter().filter(|record| record["type"] == "npub") {
         let npub = record["npub"].as_str().unwrap_or("").trim();
-        if npub.is_empty() {
-            continue;
-        }
-
-        let pubkey_hex = record["pubkey_hex"].as_str().map(|s| s.to_string()).or_else(|| {
-            PublicKey::from_bech32(npub).ok().map(|pk| pk.to_hex())
-        });
-
+        if npub.is_empty() { continue; }
+        let pubkey_hex = record["pubkey_hex"].as_str().map(|s| s.to_string()).or_else(|| PublicKey::from_bech32(npub).ok().map(|pk| pk.to_hex()));
         let result = sqlx::query(
             r#"
             INSERT INTO monitored_npubs
@@ -1027,41 +1054,24 @@ async fn restore_data(
         .bind(record["last_synced"].as_str())
         .execute(&state.pool)
         .await;
-
-        if result.is_ok() {
-            npubs_imported += 1;
-        }
+        if result.is_ok() { npubs_imported += 1; }
     }
 
     for record in records.iter().filter(|record| record["type"] == "setting") {
         let key = record["key"].as_str().unwrap_or("").trim();
-        if key.is_empty() {
-            continue;
-        }
-
-        let result = sqlx::query(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        )
-        .bind(key)
-        .bind(record["value"].as_str().unwrap_or(""))
-        .execute(&state.pool)
-        .await;
-
-        if result.is_ok() {
-            settings_imported += 1;
-        }
+        if key.is_empty() { continue; }
+        let result = sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
+            .bind(key)
+            .bind(record["value"].as_str().unwrap_or(""))
+            .execute(&state.pool)
+            .await;
+        if result.is_ok() { settings_imported += 1; }
     }
 
-    for record in records.iter().filter(|record| {
-        record.get("type").is_none() || record["type"] == "event"
-    }) {
+    for record in records.iter().filter(|record| record.get("type").is_none() || record["type"] == "event") {
         let id = record["id"].as_str().unwrap_or("").trim();
         let pubkey = record["pubkey"].as_str().unwrap_or("").trim();
-
-        if id.is_empty() || pubkey.is_empty() {
-            continue;
-        }
-
+        if id.is_empty() || pubkey.is_empty() { continue; }
         let result = sqlx::query(
             r#"
             INSERT OR IGNORE INTO events
@@ -1079,36 +1089,24 @@ async fn restore_data(
         .bind(record["imported_at"].as_str())
         .execute(&state.pool)
         .await;
-
-        if let Ok(done) = result {
-            events_imported += done.rows_affected() as i64;
-        }
+        if let Ok(done) = result { events_imported += done.rows_affected() as i64; }
     }
 
     for record in records.iter().filter(|record| record["type"] == "sync_state") {
         let npub = record["npub"].as_str().unwrap_or("").trim();
         let relay_url = record["relay_url"].as_str().unwrap_or("").trim();
-
-        if npub.is_empty() || relay_url.is_empty() {
-            continue;
-        }
-
+        if npub.is_empty() || relay_url.is_empty() { continue; }
         let npub_id: Option<i64> = sqlx::query_scalar("SELECT id FROM monitored_npubs WHERE npub = ?")
             .bind(npub)
             .fetch_optional(&state.pool)
             .await
             .unwrap_or(None);
-
         let relay_id: Option<i64> = sqlx::query_scalar("SELECT id FROM upstream_relays WHERE url = ?")
             .bind(relay_url)
             .fetch_optional(&state.pool)
             .await
             .unwrap_or(None);
-
-        let (Some(npub_id), Some(relay_id)) = (npub_id, relay_id) else {
-            continue;
-        };
-
+        let (Some(npub_id), Some(relay_id)) = (npub_id, relay_id) else { continue; };
         let result = sqlx::query(
             r#"
             INSERT INTO npub_relay_sync_state
@@ -1131,56 +1129,44 @@ async fn restore_data(
         .bind(record["updated_at"].as_str())
         .execute(&state.pool)
         .await;
-
-        if result.is_ok() {
-            sync_states_imported += 1;
-        }
+        if result.is_ok() { sync_states_imported += 1; }
     }
 
-    let message = format!(
-        "Restore complete — {} relays, {} npubs, {} settings, {} events, {} sync states applied",
-        relays_imported, npubs_imported, settings_imported, events_imported, sync_states_imported
-    );
-
+    let message = format!("Restore complete — {} relays, {} npubs, {} settings, {} events, {} sync states applied", relays_imported, npubs_imported, settings_imported, events_imported, sync_states_imported);
     log_message(&message);
-
-    Json(ApiResponse {
-        success: true,
-        message,
-    })
+    json_response(StatusCode::OK, true, message)
 }
 
-async fn download_logs() -> Response {
+async fn download_logs(headers: HeaderMap) -> Response {
+    if let Some(response) = require_admin(&headers) {
+        return response;
+    }
+
     let content = match fs::read_to_string("dashboard.log") {
         Ok(c) => c,
         Err(_) => "No logs yet.".to_string(),
     };
 
     let mut headers = header::HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        header::HeaderValue::from_static("text/plain"),
-    );
-    headers.insert(
-        header::CONTENT_DISPOSITION,
-        header::HeaderValue::from_static("attachment; filename=\"dashboard.log\""),
-    );
+    headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("text/plain"));
+    headers.insert(header::CONTENT_DISPOSITION, header::HeaderValue::from_static("attachment; filename="dashboard.log""));
 
     (headers, content).into_response()
 }
 
-async fn restart_server() -> Json<ApiResponse> {
+async fn restart_server(headers: HeaderMap) -> Response {
+    if let Some(response) = require_admin(&headers) {
+        return response;
+    }
+
     log_message("Restart requested via dashboard — external supervisor must handle the actual restart");
-    Json(ApiResponse {
-        success: true,
-        message: "Restart request logged — use tmux/systemd/docker to restart the process".to_string(),
-    })
+    json_response(StatusCode::OK, true, "Restart request logged — use tmux/systemd/docker to restart the process")
 }
 
 #[tokio::main]
 async fn main() {
     let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "dashboard.db".to_string());
-    let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port: u16 = std::env::var("PORT")
         .ok()
         .and_then(|value| value.parse().ok())
@@ -1220,7 +1206,13 @@ async fn main() {
         .nest_service("/", ServeDir::new("public"))
         .with_state(state);
 
-    log_message("🚀 Nostr Relay Dashboard v1.0.3 starting...");
+    log_message("🚀 Nostr Relay Dashboard v1.0.4 starting...");
+
+    if configured_admin_token().is_some() {
+        log_message("🔐 Admin token protection enabled for mutating and sensitive endpoints");
+    } else {
+        log_message("⚠️ NRD_ADMIN_TOKEN not set — admin protection is disabled");
+    }
 
     let listener = match TcpListener::bind(&addr).await {
         Ok(listener) => listener,
