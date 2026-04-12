@@ -3,24 +3,25 @@ FROM rust:1.78-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Cache dependencies separately
+# Cache dependencies first
 COPY Cargo.toml ./
-RUN mkdir -p src && echo 'fn main() {}' > src/main.rs
-RUN cargo build --release 2>/dev/null || true
-RUN rm -rf src
+RUN mkdir -p src public \
+    && echo 'fn main() {}' > src/main.rs \
+    && echo '<!doctype html><title>build-stub</title>' > public/index.html \
+    && cargo build --release 2>/dev/null || true \
+    && rm -rf src public
 
-# Build the real binary
+# Build the real app
 COPY src ./src
-RUN touch src/main.rs
+COPY public ./public
 RUN cargo build --release
 
-# ── Runtime stage ────────────────────────────────────────────────────────────
+# ── Runtime stage ───────────────────────────────────────────────────────────
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y \
@@ -31,20 +32,18 @@ RUN apt-get update && apt-get install -y \
 RUN useradd -ms /bin/bash relay
 WORKDIR /app
 
-COPY --from=builder /app/target/release/nostr-relay /app/nostr-relay
+COPY --from=builder /app/target/release/nostr-relay-dashboard /app/nostr-relay-dashboard
+COPY --from=builder /app/public /app/public
 
 RUN mkdir -p /app/data && chown -R relay:relay /app
 
 USER relay
 
 EXPOSE 8080
-
-ENV DATABASE_PATH=/app/data/relay.db
+ENV DATABASE_PATH=/app/data/dashboard.db
 ENV PORT=8080
 ENV HOST=0.0.0.0
-ENV RELAY_NAME="Nostr Relay"
-ENV RELAY_DESCRIPTION="A Nostr relay with whitelist support"
 
 VOLUME ["/app/data"]
 
-ENTRYPOINT ["/app/nostr-relay"]
+ENTRYPOINT ["/app/nostr-relay-dashboard"]
