@@ -1,31 +1,62 @@
 # Nostr Relay Dashboard
 
-**Hardening candidate • Version 1.0.4**  
-**Dev Team:** cryptic-node & SuperGrok • Candidate bundle recreated with ChatGPT • Powered by Rust
+**Feature release • Version 1.0.5**  
+**Dev Team:** cryptic-node & Grok/ChatGPT collaboration • Powered by Rust
 
-Nostr Relay Dashboard (NRD) is a clean, self-hosted admin and archive layer for pulling and storing events from upstream relays for any number of npubs.
+Nostr Relay Dashboard (NRD) is a clean, self-hosted admin and archive layer for pulling and storing Nostr notes from upstream relays for any number of npubs.
 
-This v1.0.4 candidate is the narrow hardening pass we discussed after the stable v1.0.3 release. It keeps the same overall UI and operator workflow, but tightens the dangerous edges.
+This **v1.0.5** build keeps the hardened private-admin posture from v1.0.4 and adds the usability/workflow upgrades that make the dashboard feel more complete in daily use.
 
-## What changed from v1.0.3
+## What changed from v1.0.4
 
-- **Loopback-by-default app binding** — the app now defaults to `127.0.0.1` unless you override `HOST`
-- **Optional admin token protection** — set `NRD_ADMIN_TOKEN` to protect mutating and sensitive endpoints
-- **Stricter restore validation** — restore now rejects malformed NDJSON and oversized payloads
-- **Consistent JSON error responses** for auth and validation failures on protected API routes
-- **Minimal UI support for admin token prompts** — the browser retries protected actions after prompting for the token when needed
-- **No visual redesign** — same three-panel dashboard, same basic feel
+- **Equal-height three-panel layout** — relays, npubs, and notes now share the same fixed panel height
+- **Independent scrolling in all panes** — each column scrolls on its own instead of one panel growing awkwardly
+- **Paginated notes loading** — notes are loaded in pages so you can browse older history without the notes pane hard-stopping at a single fixed cap
+- **Sync mode selector** — choose between `recent`, `deep`, and `full` sync modes before kicking off a pull
+- **Deep backfill support** — set a configurable backfill window in days for deeper history pulls
+- **Full backfill mode** — request the broadest history pull the upstream relays will provide
+- **Optional selected-npub sync** — target only the currently selected npub when you do not want to sync everything
+- **Optional nightly backup toggle** — keep automatic NDJSON backups on a 7-day rotation
+
+## Sync modes
+
+### Recent
+Uses the saved per-relay checkpoint when available. On first sync, recent mode defaults to the last 7 days.
+
+### Deep
+Uses an explicit backfill window in days. Default is 30 days.
+
+### Full
+Requests the broadest available history by omitting the `since` filter.
+
+## Notes pagination
+
+The notes pane now loads the newest page first and lets you fetch older notes on demand with **Load older notes**.
+
+This keeps the pane responsive even when an npub has a lot of stored history.
+
+## Nightly backups
+
+When enabled, NRD writes a backup at **00:05 local time** to the backup directory and keeps the most recent 7 files.
+
+Environment variable:
+
+```text
+BACKUP_DIR=/app/data/backups
+```
+
+If `BACKUP_DIR` is not set, NRD defaults to `data/backups` relative to the working directory.
 
 ## Admin token behavior
 
-When `NRD_ADMIN_TOKEN` is **not** set, NRD behaves much like v1.0.3.
+When `NRD_ADMIN_TOKEN` is **not** set, NRD behaves much like v1.0.4.
 
 When `NRD_ADMIN_TOKEN` **is** set, NRD requires either:
 
 - `X-Admin-Token: <token>`
 - or `Authorization: Bearer <token>`
 
-for mutating and sensitive routes such as add / delete / toggle / sync / backup / restore / logs / restart.
+for mutating and sensitive routes such as add / delete / toggle / sync / backup / restore / logs / restart / settings.
 
 ## What NRD is
 
@@ -36,17 +67,17 @@ for mutating and sensitive routes such as add / delete / toggle / sync / backup 
 
 ## What NRD is not
 
-NRD is **not** a full Nostr relay endpoint by itself.  
+NRD is **not** a full public relay endpoint by itself.  
 Use it as the admin/archive/visibility layer. If you later want a client-facing relay endpoint, pair it with a dedicated relay backend such as `nostr-rs-relay` on a separate hostname or subdomain.
 
 ## Included deployment examples
 
-This candidate bundle includes:
+This release bundle includes:
 
 - `deploy/Caddyfile.example`
 - `deploy/nrd.service`
 
-The service example binds NRD to `127.0.0.1:8080` and includes a commented `NRD_ADMIN_TOKEN` line you can enable when you want auth turned on.
+The service example still binds NRD to `127.0.0.1:8080` and now also includes an example `BACKUP_DIR` line.
 
 ## Quick start
 
@@ -65,38 +96,14 @@ http://127.0.0.1:8080
 ### Docker
 
 ```bash
-docker build -t nostr-relay-dashboard:1.0.4 .
-docker run -p 8080:8080 -v nrd-data:/app/data nostr-relay-dashboard:1.0.4
+docker build -t nostr-relay-dashboard:1.0.5 .
+docker run -p 8080:8080 -v nrd-data:/app/data nostr-relay-dashboard:1.0.5
 ```
-
-## Recommended private production setup
-
-For a personal node, the clean path is:
-
-1. Run NRD as a background service
-2. Bind NRD to `127.0.0.1`
-3. Put Caddy in front of it for HTTPS
-4. Use Tailscale + MagicDNS for easy private access
-5. Turn on `NRD_ADMIN_TOKEN` once you are ready for stricter admin protection
-
-## Backup format
-
-Backups are NDJSON and include typed records for:
-
-- `relays`
-- `npubs`
-- `settings`
-- `events`
-- `sync_state`
-
-Legacy event-only NDJSON backups are still accepted on restore.
 
 ## Candidate notes
 
-This is a **develop-branch testing candidate**, not the stable v1.0.3 release.
+This is a **develop-branch feature candidate** built as the proposed v1.0.5 release.
 
 ## Credits
 
-Huge thanks to SuperGrok for the Rust guidance, debugging help, and feature brainstorming that helped shape the project.
-
-Built with passion by cryptic-node — because the wheel sometimes deserves a fresh set of rims.
+Huge thanks to Grok for idea generation and feature brainstorming, and to ChatGPT for the release packaging and implementation pass.
