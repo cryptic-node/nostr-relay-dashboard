@@ -106,6 +106,67 @@ const MAX_NAME_LENGTH: usize = 80;
 const MAX_LABEL_LENGTH: usize = 80;
 const MAX_URL_LENGTH: usize = 512;
 
+fn configured_admin_token() -> Option<String> {
+    std::env::var("NRD_ADMIN_TOKEN")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn request_admin_token(headers: &HeaderMap) -> Option<String> {
+    if let Some(value) = headers
+        .get("x-admin-token")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Some(value.to_string());
+    }
+
+    headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string())
+}
+
+fn json_response(status: StatusCode, success: bool, message: impl Into<String>) -> Response {
+    (status, Json(ApiResponse {
+        success,
+        message: message.into(),
+    }))
+        .into_response()
+}
+
+fn is_valid_relay_url(url: &str) -> bool {
+    url.starts_with("ws://") || url.starts_with("wss://")
+}
+
+fn format_line_numbers(lines: &[usize]) -> String {
+    lines
+        .iter()
+        .map(|line| line.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn require_admin(headers: &HeaderMap) -> Option<Response> {
+    let Some(expected_token) = configured_admin_token() else {
+        return None;
+    };
+
+    match request_admin_token(headers) {
+        Some(provided_token) if provided_token == expected_token => None,
+        _ => Some(json_response(
+            StatusCode::UNAUTHORIZED,
+            false,
+            "Admin token required or invalid",
+        )),
+    }
+}
+
 fn log_message(message: &str) {
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let entry = format!("{} | {}\n", timestamp, message);
@@ -935,7 +996,7 @@ async fn backup_data(State(state): State<Arc<AppState>>, headers: HeaderMap) -> 
 
     let mut headers = header::HeaderMap::new();
     headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/x-ndjson"));
-    headers.insert(header::CONTENT_DISPOSITION, header::HeaderValue::from_static("attachment; filename="nostr-dashboard-backup.ndjson""));
+    headers.insert(header::CONTENT_DISPOSITION, header::HeaderValue::from_static(r#"attachment; filename="nostr-dashboard-backup.ndjson""#));
 
     (headers, ndjson).into_response()
 }
@@ -1149,7 +1210,7 @@ async fn download_logs(headers: HeaderMap) -> Response {
 
     let mut headers = header::HeaderMap::new();
     headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("text/plain"));
-    headers.insert(header::CONTENT_DISPOSITION, header::HeaderValue::from_static("attachment; filename="dashboard.log""));
+    headers.insert(header::CONTENT_DISPOSITION, header::HeaderValue::from_static(r#"attachment; filename="dashboard.log""#));
 
     (headers, content).into_response()
 }
