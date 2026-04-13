@@ -1,7 +1,7 @@
 # Nostr Relay Dashboard
 
-**Personal backup & aggregator • Version 1.0.3**  
-**Dev Team:** cryptic-node, ChatGPT Pro & SuperGrok • Proposed release bundle refined by ChatGPT Pro • Powered by Rust
+**Hardening candidate • Version 1.0.4**  
+**Dev Team:** cryptic-node & SuperGrok • Candidate bundle recreated with ChatGPT • Powered by Rust
 
 Nostr Relay Dashboard (NRD) is a clean, self-hosted admin and archive layer for pulling and storing events from upstream relays for any number of npubs.
 
