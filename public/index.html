@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nostr Relay Dashboard v1.0.3</title>
+    <title>Nostr Relay Dashboard v1.0.4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -37,11 +37,11 @@
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-8">
             <div class="flex items-center gap-x-3">
                 <i class="fa-solid fa-bolt text-purple-400 text-3xl"></i>
-                <h1 class="text-3xl font-semibold">Nostr Relay Dashboard <span class="text-purple-400 text-xl font-medium">v1.0.3</span></h1>
+                <h1 class="text-3xl font-semibold">Nostr Relay Dashboard <span class="text-purple-400 text-xl font-medium">v1.0.4</span></h1>
             </div>
             <div class="flex items-center gap-x-2 text-sm text-zinc-400">
                 <i class="fa-solid fa-circle-check text-emerald-400"></i>
-                <span id="status" class="font-medium status-green">Ready • incremental sync • full NDJSON backup • safer rendering</span>
+                <span id="status" class="font-medium status-green">Ready</span>
             </div>
         </div>
 
@@ -133,6 +133,55 @@
                     bar.textContent = '';
                 }
             }, 5000);
+        }
+
+        function adminHeaders(extraHeaders = {}) {
+            const headers = { ...extraHeaders };
+            const token = localStorage.getItem('nrdAdminToken');
+            if (token) {
+                headers['X-Admin-Token'] = token;
+            }
+            return headers;
+        }
+
+        async function extractErrorMessage(response, fallbackMessage) {
+            try {
+                const data = await response.clone().json();
+                if (data && typeof data.message === 'string' && data.message.trim()) {
+                    return data.message;
+                }
+            } catch (_) {}
+
+            try {
+                const text = await response.clone().text();
+                if (text && text.trim()) {
+                    return text.trim();
+                }
+            } catch (_) {}
+
+            return fallbackMessage;
+        }
+
+        async function fetchWithAdminRetry(url, options = {}, fallbackMessage = 'Request failed') {
+            const send = () => fetch(url, {
+                ...options,
+                headers: adminHeaders(options.headers || {})
+            });
+
+            let response = await send();
+            if (response.status !== 401) {
+                return response;
+            }
+
+            const token = prompt('Enter NRD admin token');
+            if (!token) {
+                showStatus('Admin token required for this action', true);
+                return null;
+            }
+
+            localStorage.setItem('nrdAdminToken', token.trim());
+            response = await send();
+            return response;
         }
 
         async function fetchRelays() {
@@ -251,14 +300,15 @@
                 return;
             }
 
-            const response = await fetch('/api/relays', {
+            const response = await fetchWithAdminRetry('/api/relays', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url, name: name || null })
-            });
+            }, 'Could not add relay');
 
+            if (!response) return;
             const data = await response.json();
-            showStatus(data.message, !data.success);
+            showStatus(data.message, !response.ok || !data.success);
 
             if (data.success) {
                 document.getElementById('new-relay-url').value = '';
@@ -276,14 +326,15 @@
                 return;
             }
 
-            const response = await fetch('/api/npubs', {
+            const response = await fetchWithAdminRetry('/api/npubs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ npub, label: label || null })
-            });
+            }, 'Could not add npub');
 
+            if (!response) return;
             const data = await response.json();
-            showStatus(data.message, !data.success);
+            showStatus(data.message, !response.ok || !data.success);
 
             if (data.success) {
                 document.getElementById('new-npub').value = '';
@@ -293,14 +344,15 @@
         }
 
         async function toggleRelay(id, enabled) {
-            const response = await fetch(`/api/relays/${id}/toggle`, {
+            const response = await fetchWithAdminRetry(`/api/relays/${id}/toggle`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ enabled })
-            });
+            }, 'Could not update relay');
 
+            if (!response) return;
             const data = await response.json();
-            showStatus(data.message, !data.success);
+            showStatus(data.message, !response.ok || !data.success);
 
             if (data.success) {
                 await fetchRelays();
@@ -312,9 +364,10 @@
                 return;
             }
 
-            const response = await fetch(`/api/relays/${id}`, { method: 'DELETE' });
+            const response = await fetchWithAdminRetry(`/api/relays/${id}`, { method: 'DELETE' }, 'Could not delete relay');
+            if (!response) return;
             const data = await response.json();
-            showStatus(data.message, !data.success);
+            showStatus(data.message, !response.ok || !data.success);
 
             if (data.success) {
                 await fetchRelays();
@@ -326,9 +379,10 @@
                 return;
             }
 
-            const response = await fetch(`/api/npubs/${id}`, { method: 'DELETE' });
+            const response = await fetchWithAdminRetry(`/api/npubs/${id}`, { method: 'DELETE' }, 'Could not delete npub');
+            if (!response) return;
             const data = await response.json();
-            showStatus(data.message, !data.success);
+            showStatus(data.message, !response.ok || !data.success);
 
             if (data.success) {
                 if (selectedNpubId === id) {
@@ -342,9 +396,10 @@
         }
 
         async function syncNow() {
-            const response = await fetch('/api/sync', { method: 'POST' });
+            const response = await fetchWithAdminRetry('/api/sync', { method: 'POST' }, 'Could not start sync');
+            if (!response) return;
             const data = await response.json();
-            showStatus(data.message, !data.success);
+            showStatus(data.message, !response.ok || !data.success);
 
             setTimeout(fetchRelays, 2000);
             setTimeout(fetchNpubs, 2000);
@@ -354,9 +409,10 @@
         }
 
         async function backup() {
-            const response = await fetch('/api/backup');
+            const response = await fetchWithAdminRetry('/api/backup', {}, 'Backup failed');
+            if (!response) return;
             if (!response.ok) {
-                showStatus('Backup failed', true);
+                showStatus(await extractErrorMessage(response, 'Backup failed'), true);
                 return;
             }
 
@@ -379,14 +435,19 @@
             if (!file) return;
 
             const text = await file.text();
-            const response = await fetch('/api/restore', {
+            const response = await fetchWithAdminRetry('/api/restore', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ndjson: text })
-            });
+            }, 'Restore failed');
+
+            if (!response) {
+                event.target.value = '';
+                return;
+            }
 
             const data = await response.json();
-            showStatus(data.message, !data.success);
+            showStatus(data.message, !response.ok || !data.success);
 
             if (data.success) {
                 await fetchRelays();
@@ -400,9 +461,10 @@
         }
 
         async function downloadLogs() {
-            const response = await fetch('/api/logs');
+            const response = await fetchWithAdminRetry('/api/logs', {}, 'Could not download logs');
+            if (!response) return;
             if (!response.ok) {
-                showStatus('Could not download logs', true);
+                showStatus(await extractErrorMessage(response, 'Could not download logs'), true);
                 return;
             }
 
@@ -417,15 +479,16 @@
         }
 
         async function restartServer() {
-            const response = await fetch('/api/restart', { method: 'POST' });
+            const response = await fetchWithAdminRetry('/api/restart', { method: 'POST' }, 'Could not request restart');
+            if (!response) return;
             const data = await response.json();
-            showStatus(data.message, !data.success);
+            showStatus(data.message, !response.ok || !data.success);
         }
 
         window.onload = async () => {
             await fetchRelays();
             await fetchNpubs();
-            console.log('%c✅ NRD v1.0.3 release bundle loaded — incremental sync + full backup + safer rendering', 'color:#10b981;font-weight:bold;');
+            console.log('%c✅ NRD v1.0.4 production release loaded', 'color:#10b981;font-weight:bold;');
         };
     </script>
 </body>

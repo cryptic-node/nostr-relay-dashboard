@@ -1,0 +1,16 @@
+# Example private HTTPS front end for NRD
+# Replace nrd.your-tailnet.ts.net with your real MagicDNS hostname.
+#
+# NRD is the admin/archive layer, not a full relay endpoint by itself.
+# Keep NRD bound to 127.0.0.1 and let Caddy handle HTTPS.
+
+nrd.your-tailnet.ts.net {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8080
+}
+
+# Optional future pattern for a dedicated relay backend:
+#
+# relay.your-tailnet.ts.net {
+#     reverse_proxy 127.0.0.1:7447
+# }
