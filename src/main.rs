@@ -1622,7 +1622,7 @@ async fn main() {
         .route("/api/logs", get(download_logs))
         .route("/api/restart", post(restart_server))
         .nest_service("/", ServeDir::new("public"))
-        .with_state(state);
+        .with_state(state.clone());
 
     log_message("🚀 Nostr Relay Dashboard v1.0.5 starting...");
 
