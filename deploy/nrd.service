@@ -11,6 +11,7 @@ WorkingDirectory=/opt/nostr-relay-dashboard
 Environment=DATABASE_PATH=/opt/nostr-relay-dashboard/dashboard.db
 Environment=HOST=127.0.0.1
 Environment=PORT=8080
+Environment=BACKUP_DIR=/opt/nostr-relay-dashboard/data/backups
 # Uncomment and set your token to protect admin endpoints
 # Environment=NRD_ADMIN_TOKEN=change-me
 ExecStart=/opt/nostr-relay-dashboard/target/release/nostr-relay-dashboard

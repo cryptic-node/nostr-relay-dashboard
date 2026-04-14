@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nostr Relay Dashboard v1.0.4</title>
+    <title>Nostr Relay Dashboard v1.0.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -17,6 +17,10 @@
         }
         .status-green { color: #10b981; }
         .status-red { color: #f87171; }
+        .glass {
+            background: rgba(24, 24, 27, 0.95);
+            backdrop-filter: blur(8px);
+        }
 
         #relays-list::-webkit-scrollbar,
         #npubs-list::-webkit-scrollbar,
@@ -37,7 +41,7 @@
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-8">
             <div class="flex items-center gap-x-3">
                 <i class="fa-solid fa-bolt text-purple-400 text-3xl"></i>
-                <h1 class="text-3xl font-semibold">Nostr Relay Dashboard <span class="text-purple-400 text-xl font-medium">v1.0.4</span></h1>
+                <h1 class="text-3xl font-semibold">Nostr Relay Dashboard <span class="text-purple-400 text-xl font-medium">v1.0.5</span></h1>
             </div>
             <div class="flex items-center gap-x-2 text-sm text-zinc-400">
                 <i class="fa-solid fa-circle-check text-emerald-400"></i>
@@ -45,12 +49,40 @@
             </div>
         </div>
 
+        <div class="glass rounded-3xl border border-zinc-800 p-4 md:p-5 mb-6 space-y-4">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-end">
+                <div>
+                    <label class="block text-xs text-zinc-400 mb-2">Sync mode</label>
+                    <select id="sync-mode" class="w-full bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
+                        <option value="recent">Recent checkpoint sync</option>
+                        <option value="deep">Deep backfill</option>
+                        <option value="full">Full backfill</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-zinc-400 mb-2">Deep backfill days</label>
+                    <input id="deep-days" type="number" min="1" max="3650" value="30" class="w-full bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
+                </div>
+                <div class="flex items-center gap-3 pt-6 lg:pt-0">
+                    <input id="selected-only-toggle" type="checkbox" class="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-purple-500 focus:ring-purple-400">
+                    <label for="selected-only-toggle" class="text-sm text-zinc-300">Sync selected npub only</label>
+                </div>
+                <div class="flex items-center gap-3 pt-6 lg:pt-0">
+                    <input id="nightly-backup-toggle" type="checkbox" class="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-purple-500 focus:ring-purple-400" onchange="toggleNightlyBackup()">
+                    <label for="nightly-backup-toggle" class="text-sm text-zinc-300">Nightly backup 00:05 local</label>
+                </div>
+            </div>
+            <div class="text-xs text-zinc-400">
+                Recent uses the saved checkpoint, Deep uses a fixed day window, and Full omits the since filter for the broadest backfill relays will give you.
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col min-h-[640px]">
+            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col h-[680px]">
                 <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2">
                     <i class="fa-solid fa-plug"></i> Upstream Relays
                 </h2>
-                <div id="relays-list" class="flex-1 space-y-3 overflow-y-auto pr-2"></div>
+                <div id="relays-list" class="flex-1 min-h-0 space-y-3 overflow-y-auto pr-2"></div>
                 <div class="mt-6 pt-6 border-t border-zinc-800">
                     <input id="new-relay-url" type="text" placeholder="wss://..." class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
                     <input id="new-relay-name" type="text" placeholder="Relay name (optional)" class="mt-2 w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
@@ -58,11 +90,11 @@
                 </div>
             </div>
 
-            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col min-h-[640px]">
+            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col h-[680px]">
                 <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2">
                     <i class="fa-solid fa-user-secret"></i> Monitored Npubs
                 </h2>
-                <div id="npubs-list" class="flex-1 space-y-3 overflow-y-auto pr-2"></div>
+                <div id="npubs-list" class="flex-1 min-h-0 space-y-3 overflow-y-auto pr-2"></div>
                 <div class="mt-6 pt-6 border-t border-zinc-800">
                     <input id="new-npub" type="text" placeholder="npub1..." class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400 font-mono">
                     <input id="new-label" type="text" placeholder="Nickname (optional)" class="mt-2 w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
@@ -70,16 +102,18 @@
                 </div>
             </div>
 
-            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col min-h-[640px]">
+            <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col h-[680px]">
                 <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2">
                     <i class="fa-solid fa-note-sticky"></i>
-                    Recent Notes
+                    Notes Archive
                     <span id="selected-npub-name" class="text-purple-400 text-sm font-normal ml-auto"></span>
                 </h2>
-                <div id="notes-list" class="flex-1 space-y-4 overflow-y-auto pr-2 max-h-[560px]"></div>
+                <div id="notes-meta" class="text-xs text-zinc-400 mb-3 hidden"></div>
+                <div id="notes-list" class="flex-1 min-h-0 space-y-4 overflow-y-auto pr-2"></div>
                 <div id="no-events-msg" class="flex-1 flex items-center justify-center text-zinc-400 text-sm">
                     Select an npub to view its stored notes
                 </div>
+                <button id="load-more-btn" onclick="loadMoreEvents()" class="hidden mt-4 bg-zinc-800 hover:bg-zinc-700 py-3 rounded-2xl text-sm font-medium">Load older notes</button>
             </div>
         </div>
 
@@ -109,6 +143,12 @@
         let selectedNpubId = null;
         let npubsCache = [];
         let relaysCache = [];
+        let notesState = {
+            offset: 0,
+            limit: 25,
+            total: 0,
+            loading: false,
+        };
 
         function escapeHtml(value) {
             return String(value ?? '')
@@ -126,11 +166,16 @@
 
         function showStatus(message, isError = false) {
             const bar = document.getElementById('status-bar');
+            const headerStatus = document.getElementById('status');
             bar.textContent = message;
             bar.className = `mt-6 text-center font-medium text-sm ${isError ? 'status-red' : 'status-green'}`;
+            headerStatus.textContent = isError ? 'Attention' : 'Ready';
+            headerStatus.className = `font-medium ${isError ? 'status-red' : 'status-green'}`;
             setTimeout(() => {
                 if (bar.textContent === message) {
                     bar.textContent = '';
+                    headerStatus.textContent = 'Ready';
+                    headerStatus.className = 'font-medium status-green';
                 }
             }, 5000);
         }
@@ -182,6 +227,26 @@
             localStorage.setItem('nrdAdminToken', token.trim());
             response = await send();
             return response;
+        }
+
+        async function fetchSettings() {
+            const response = await fetch('/api/settings');
+            const settings = await response.json();
+            document.getElementById('nightly-backup-toggle').checked = settings.nightly_backup_enabled === 'true';
+            return settings;
+        }
+
+        async function toggleNightlyBackup() {
+            const enabled = document.getElementById('nightly-backup-toggle').checked;
+            const response = await fetchWithAdminRetry('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'nightly_backup_enabled', value: enabled ? 'true' : 'false' })
+            }, 'Could not update nightly backup setting');
+
+            if (!response) return;
+            const data = await response.json();
+            showStatus(data.message, !response.ok || !data.success);
         }
 
         async function fetchRelays() {
@@ -247,7 +312,7 @@
                             <i class="fa-solid fa-trash"></i>
                         </button>
                     </div>
-                    <div class="mt-3 flex items-end justify-between">
+                    <div class="mt-3 flex items-end justify-between gap-3">
                         <div class="text-emerald-400">${npub.notes_stored} stored notes</div>
                         <div class="text-zinc-400 text-[10px]">${escapeHtml(npub.last_synced || 'never')}</div>
                     </div>
@@ -262,25 +327,13 @@
             document.getElementById('selected-npub-name').textContent =
                 npub?.label || truncate(npub?.npub || '', 16);
 
-            await fetchEvents(id);
             await fetchNpubs();
+            await fetchEvents(true);
         }
 
-        async function fetchEvents(npubId) {
-            const response = await fetch(`/api/npubs/${npubId}/events`);
-            const events = await response.json();
-
+        function renderEvents(events, append = false) {
             const container = document.getElementById('notes-list');
-            const noMsg = document.getElementById('no-events-msg');
-
-            if (!events.length) {
-                container.innerHTML = '';
-                noMsg.classList.remove('hidden');
-                return;
-            }
-
-            noMsg.classList.add('hidden');
-            container.innerHTML = events.map(event => `
+            const html = events.map(event => `
                 <div class="bg-zinc-800 rounded-2xl p-4 text-sm">
                     <div class="flex items-center justify-between gap-3 mb-2">
                         <div class="text-emerald-400 text-xs">${escapeHtml(event.created_at)}</div>
@@ -289,6 +342,47 @@
                     <div class="leading-relaxed whitespace-pre-wrap break-words">${escapeHtml(event.preview)}</div>
                 </div>
             `).join('');
+
+            container.innerHTML = append ? container.innerHTML + html : html;
+        }
+
+        async function fetchEvents(reset = false) {
+            if (!selectedNpubId || notesState.loading) return;
+            notesState.loading = true;
+
+            if (reset) {
+                notesState.offset = 0;
+                document.getElementById('notes-list').innerHTML = '';
+            }
+
+            const response = await fetch(`/api/npubs/${selectedNpubId}/events?limit=${notesState.limit}&offset=${notesState.offset}`);
+            const payload = await response.json();
+
+            const noMsg = document.getElementById('no-events-msg');
+            const loadMore = document.getElementById('load-more-btn');
+            const meta = document.getElementById('notes-meta');
+
+            if (!payload.items.length && notesState.offset === 0) {
+                noMsg.classList.remove('hidden');
+                loadMore.classList.add('hidden');
+                meta.classList.add('hidden');
+                notesState.loading = false;
+                return;
+            }
+
+            noMsg.classList.add('hidden');
+            meta.classList.remove('hidden');
+            meta.textContent = `Showing ${Math.min(payload.offset + payload.items.length, payload.total)} of ${payload.total} stored notes`;
+            renderEvents(payload.items, notesState.offset > 0);
+
+            notesState.total = payload.total;
+            notesState.offset = payload.offset + payload.items.length;
+            loadMore.classList.toggle('hidden', !payload.has_more);
+            notesState.loading = false;
+        }
+
+        async function loadMoreEvents() {
+            await fetchEvents(false);
         }
 
         async function addRelay() {
@@ -390,13 +484,34 @@
                     document.getElementById('selected-npub-name').textContent = '';
                     document.getElementById('notes-list').innerHTML = '';
                     document.getElementById('no-events-msg').classList.remove('hidden');
+                    document.getElementById('load-more-btn').classList.add('hidden');
+                    document.getElementById('notes-meta').classList.add('hidden');
                 }
                 await fetchNpubs();
             }
         }
 
         async function syncNow() {
-            const response = await fetchWithAdminRetry('/api/sync', { method: 'POST' }, 'Could not start sync');
+            const mode = document.getElementById('sync-mode').value;
+            const deepDays = parseInt(document.getElementById('deep-days').value || '30', 10);
+            const selectedOnly = document.getElementById('selected-only-toggle').checked;
+            const payload = {
+                mode,
+                deep_days: Number.isFinite(deepDays) ? deepDays : 30,
+                npub_id: selectedOnly ? selectedNpubId : null,
+            };
+
+            if (selectedOnly && !selectedNpubId) {
+                showStatus('Select an npub first or disable selected-npub-only sync', true);
+                return;
+            }
+
+            const response = await fetchWithAdminRetry('/api/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }, 'Could not start sync');
+
             if (!response) return;
             const data = await response.json();
             showStatus(data.message, !response.ok || !data.success);
@@ -404,7 +519,7 @@
             setTimeout(fetchRelays, 2000);
             setTimeout(fetchNpubs, 2000);
             if (selectedNpubId) {
-                setTimeout(() => fetchEvents(selectedNpubId), 3000);
+                setTimeout(() => fetchEvents(true), 3000);
             }
         }
 
@@ -453,7 +568,7 @@
                 await fetchRelays();
                 await fetchNpubs();
                 if (selectedNpubId) {
-                    await fetchEvents(selectedNpubId);
+                    await fetchEvents(true);
                 }
             }
 
@@ -488,7 +603,8 @@
         window.onload = async () => {
             await fetchRelays();
             await fetchNpubs();
-            console.log('%c✅ NRD v1.0.4 production release loaded', 'color:#10b981;font-weight:bold;');
+            await fetchSettings();
+            console.log('%c✅ NRD v1.0.5 feature release loaded', 'color:#10b981;font-weight:bold;');
         };
     </script>
 </body>
