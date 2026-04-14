@@ -110,4 +110,10 @@ Huge thanks to Grok for idea generation and feature brainstorming, and to ChatGP
 
 ## Screenshot
 
+## Screenshot
+
+<p align="center">
+  <img src="./NRDv1.0.5.png" alt="Nostr Relay Dashboard v1.0.5 screenshot" width="900">
+</p>
+
 ![Nostr Relay Dashboard v1.0.5](./NRDv1.0.5.png)
