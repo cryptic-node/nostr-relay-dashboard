@@ -106,4 +106,8 @@ This is a **develop-branch feature candidate** built as the proposed v1.0.5 rele
 
 ## Credits
 
-Huge thanks to Grok for idea generation and feature brainstorming, and to ChatGPT for the release packaging and implementation pass.
+Huge thanks to Grok for idea generation and feature brainstorming, and to ChatGPT for the release packaging and implementation pass, and the NOSTR community!
+
+## Screenshot
+
+![Nostr Relay Dashboard v1.0.5](./NRDv1.0.5.png)
