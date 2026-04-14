@@ -1,0 +1,27 @@
+# Tailnet-only Caddy example for NRD
+# ----------------------------------
+# Purpose:
+#   - Expose NRD only to devices on your Tailscale network.
+#   - Keep NRD off the public internet.
+#
+# Replace these before use:
+#   - nrd.example.ts.net  -> your real MagicDNS name
+#   - 100.64.0.10         -> your droplet's real Tailscale IPv4 from 'tailscale ip -4'
+#
+# Browser URL from another device on your Tailnet:
+#   http://nrd.example.ts.net
+#
+# Typical NRD runtime for this mode:
+#   HOST=127.0.0.1 PORT=8080 cargo run
+#
+# Notes:
+#   - Caddy listens only on the Tailscale interface with 'bind'.
+#   - Because auto_https is off here, use http, not https.
+{
+    auto_https off
+}
+
+http://nrd.example.ts.net {
+    bind 100.64.0.10
+    reverse_proxy 127.0.0.1:8080
+}

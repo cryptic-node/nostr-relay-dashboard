@@ -17,23 +17,13 @@
         }
         .status-green { color: #10b981; }
         .status-red { color: #f87171; }
-        .glass {
-            background: rgba(24, 24, 27, 0.95);
-            backdrop-filter: blur(8px);
-        }
-
+        .glass { background: rgba(24, 24, 27, 0.95); backdrop-filter: blur(8px); }
         #relays-list::-webkit-scrollbar,
         #npubs-list::-webkit-scrollbar,
-        #notes-list::-webkit-scrollbar {
-            width: 6px;
-        }
-
+        #notes-list::-webkit-scrollbar { width: 6px; }
         #relays-list::-webkit-scrollbar-thumb,
         #npubs-list::-webkit-scrollbar-thumb,
-        #notes-list::-webkit-scrollbar-thumb {
-            background-color: #4b5563;
-            border-radius: 20px;
-        }
+        #notes-list::-webkit-scrollbar-thumb { background-color: #4b5563; border-radius: 20px; }
     </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100">
@@ -41,7 +31,7 @@
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-8">
             <div class="flex items-center gap-x-3">
                 <i class="fa-solid fa-bolt text-purple-400 text-3xl"></i>
-                <h1 class="text-3xl font-semibold">Nostr Relay Dashboard <span class="text-purple-400 text-xl font-medium">v1.0.5</span></h1>
+                <h1 class="text-3xl font-semibold">Nostr Relay Dashboard <span class="text-purple-400 text-xl font-medium">v1.0.5 polished</span></h1>
             </div>
             <div class="flex items-center gap-x-2 text-sm text-zinc-400">
                 <i class="fa-solid fa-circle-check text-emerald-400"></i>
@@ -64,12 +54,11 @@
                     <input id="deep-days" type="number" min="1" max="3650" value="30" class="w-full bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
                 </div>
                 <div class="flex items-center gap-3 pt-6 lg:pt-0">
-                    <input id="selected-only-toggle" type="checkbox" class="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-purple-500 focus:ring-purple-400">
-                    <label for="selected-only-toggle" class="text-sm text-zinc-300">Sync selected npub only</label>
-                </div>
-                <div class="flex items-center gap-3 pt-6 lg:pt-0">
                     <input id="nightly-backup-toggle" type="checkbox" class="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-purple-500 focus:ring-purple-400" onchange="toggleNightlyBackup()">
                     <label for="nightly-backup-toggle" class="text-sm text-zinc-300">Nightly backup 00:05 local</label>
+                </div>
+                <div class="text-xs text-zinc-400 pt-2 lg:pt-0">
+                    Leave all npubs unselected to sync all monitored npubs. Select one or more npubs to sync only that selection.
                 </div>
             </div>
             <div class="text-xs text-zinc-400">
@@ -79,9 +68,7 @@
 
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col h-[680px]">
-                <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2">
-                    <i class="fa-solid fa-plug"></i> Upstream Relays
-                </h2>
+                <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2"><i class="fa-solid fa-plug"></i> Upstream Relays</h2>
                 <div id="relays-list" class="flex-1 min-h-0 space-y-3 overflow-y-auto pr-2"></div>
                 <div class="mt-6 pt-6 border-t border-zinc-800">
                     <input id="new-relay-url" type="text" placeholder="wss://..." class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
@@ -91,9 +78,11 @@
             </div>
 
             <div class="panel bg-zinc-900 rounded-3xl p-6 border border-zinc-800 flex flex-col h-[680px]">
-                <h2 class="text-lg font-medium mb-4 flex items-center gap-x-2">
-                    <i class="fa-solid fa-user-secret"></i> Monitored Npubs
-                </h2>
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <h2 class="text-lg font-medium flex items-center gap-x-2"><i class="fa-solid fa-user-secret"></i> Monitored Npubs</h2>
+                    <button onclick="clearSelectedNpubs()" class="text-xs px-3 py-2 rounded-2xl bg-zinc-800 hover:bg-zinc-700">Clear selection</button>
+                </div>
+                <div class="text-xs text-zinc-400 mb-3">Click one or more npubs to select them. Notes show all selected npubs combined, newest first.</div>
                 <div id="npubs-list" class="flex-1 min-h-0 space-y-3 overflow-y-auto pr-2"></div>
                 <div class="mt-6 pt-6 border-t border-zinc-800">
                     <input id="new-npub" type="text" placeholder="npub1..." class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400 font-mono">
@@ -111,28 +100,18 @@
                 <div id="notes-meta" class="text-xs text-zinc-400 mb-3 hidden"></div>
                 <div id="notes-list" class="flex-1 min-h-0 space-y-4 overflow-y-auto pr-2"></div>
                 <div id="no-events-msg" class="flex-1 flex items-center justify-center text-zinc-400 text-sm">
-                    Select an npub to view its stored notes
+                    Notes from all monitored npubs will appear here. Select one or more npubs to narrow the feed.
                 </div>
                 <button id="load-more-btn" onclick="loadMoreEvents()" class="hidden mt-4 bg-zinc-800 hover:bg-zinc-700 py-3 rounded-2xl text-sm font-medium">Load older notes</button>
             </div>
         </div>
 
         <div class="mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-            <button onclick="syncNow()" class="bg-emerald-500 hover:bg-emerald-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg">
-                <i class="fa-solid fa-rotate"></i> Sync Now
-            </button>
-            <button onclick="backup()" class="bg-violet-500 hover:bg-violet-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg">
-                <i class="fa-solid fa-download"></i> Backup
-            </button>
-            <button onclick="restore()" class="bg-amber-500 hover:bg-amber-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg">
-                <i class="fa-solid fa-upload"></i> Restore
-            </button>
-            <button onclick="downloadLogs()" class="bg-sky-500 hover:bg-sky-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg">
-                <i class="fa-solid fa-file-lines"></i> Download Logs
-            </button>
-            <button onclick="restartServer()" class="bg-red-500 hover:bg-red-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg">
-                <i class="fa-solid fa-power-off"></i> Restart
-            </button>
+            <button onclick="syncNow()" class="bg-emerald-500 hover:bg-emerald-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg"><i class="fa-solid fa-rotate"></i> Sync Now</button>
+            <button onclick="backup()" class="bg-violet-500 hover:bg-violet-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg"><i class="fa-solid fa-download"></i> Backup</button>
+            <button onclick="restore()" class="bg-amber-500 hover:bg-amber-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg"><i class="fa-solid fa-upload"></i> Restore</button>
+            <button onclick="downloadLogs()" class="bg-sky-500 hover:bg-sky-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg"><i class="fa-solid fa-file-lines"></i> Download Logs</button>
+            <button onclick="restartServer()" class="bg-red-500 hover:bg-red-400 text-white font-medium py-4 rounded-3xl flex items-center justify-center gap-x-3 text-lg"><i class="fa-solid fa-power-off"></i> Restart</button>
         </div>
 
         <div id="status-bar" class="mt-6 text-center font-medium text-sm"></div>
@@ -140,15 +119,10 @@
     </div>
 
     <script>
-        let selectedNpubId = null;
+        let selectedNpubIds = new Set();
         let npubsCache = [];
         let relaysCache = [];
-        let notesState = {
-            offset: 0,
-            limit: 25,
-            total: 0,
-            loading: false,
-        };
+        let notesState = { offset: 0, limit: 25, total: 0, loading: false };
 
         function escapeHtml(value) {
             return String(value ?? '')
@@ -162,6 +136,20 @@
         function truncate(value, max) {
             const stringValue = String(value ?? '');
             return stringValue.length > max ? stringValue.slice(0, max - 3) + '...' : stringValue;
+        }
+
+        function selectedIdsArray() {
+            return Array.from(selectedNpubIds).sort((a, b) => a - b);
+        }
+
+        function selectedSummaryText() {
+            const ids = selectedIdsArray();
+            if (!ids.length) return 'All monitored npubs';
+            if (ids.length === 1) {
+                const npub = npubsCache.find(item => item.id === ids[0]);
+                return npub?.label || truncate(npub?.npub || '', 16) || '1 selected npub';
+            }
+            return `${ids.length} selected npubs`;
         }
 
         function showStatus(message, isError = false) {
@@ -183,47 +171,31 @@
         function adminHeaders(extraHeaders = {}) {
             const headers = { ...extraHeaders };
             const token = localStorage.getItem('nrdAdminToken');
-            if (token) {
-                headers['X-Admin-Token'] = token;
-            }
+            if (token) headers['X-Admin-Token'] = token;
             return headers;
         }
 
         async function extractErrorMessage(response, fallbackMessage) {
             try {
                 const data = await response.clone().json();
-                if (data && typeof data.message === 'string' && data.message.trim()) {
-                    return data.message;
-                }
+                if (data && typeof data.message === 'string' && data.message.trim()) return data.message;
             } catch (_) {}
-
             try {
                 const text = await response.clone().text();
-                if (text && text.trim()) {
-                    return text.trim();
-                }
+                if (text && text.trim()) return text.trim();
             } catch (_) {}
-
             return fallbackMessage;
         }
 
         async function fetchWithAdminRetry(url, options = {}, fallbackMessage = 'Request failed') {
-            const send = () => fetch(url, {
-                ...options,
-                headers: adminHeaders(options.headers || {})
-            });
-
+            const send = () => fetch(url, { ...options, headers: adminHeaders(options.headers || {}) });
             let response = await send();
-            if (response.status !== 401) {
-                return response;
-            }
-
+            if (response.status !== 401) return response;
             const token = prompt('Enter NRD admin token');
             if (!token) {
                 showStatus('Admin token required for this action', true);
                 return null;
             }
-
             localStorage.setItem('nrdAdminToken', token.trim());
             response = await send();
             return response;
@@ -243,7 +215,6 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key: 'nightly_backup_enabled', value: enabled ? 'true' : 'false' })
             }, 'Could not update nightly backup setting');
-
             if (!response) return;
             const data = await response.json();
             showStatus(data.message, !response.ok || !data.success);
@@ -252,16 +223,13 @@
         async function fetchRelays() {
             const response = await fetch('/api/relays');
             relaysCache = await response.json();
-
-            const container = document.getElementById('relays-list');
-            container.innerHTML = relaysCache.map(renderRelayCard).join('');
+            document.getElementById('relays-list').innerHTML = relaysCache.map(renderRelayCard).join('');
         }
 
         function renderRelayCard(relay) {
             const errorBlock = relay.last_error
                 ? `<div class="text-red-400 text-[11px] leading-snug break-words">Last error: ${escapeHtml(truncate(relay.last_error, 160))}</div>`
                 : `<div class="text-zinc-400 text-[11px]">${relay.last_sync_notes} new notes stored on last run</div>`;
-
             return `
                 <div class="bg-zinc-800 rounded-2xl px-4 py-3 text-xs ${relay.enabled ? '' : 'opacity-60'}">
                     <div class="flex items-start justify-between gap-3">
@@ -273,60 +241,58 @@
                             <div class="text-zinc-400 truncate max-w-[220px]">${escapeHtml(relay.url)}</div>
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
-                            <button onclick="toggleRelay(${relay.id}, ${!relay.enabled})" class="px-3 py-1 rounded-full text-[11px] font-semibold ${relay.enabled ? 'bg-emerald-500 text-white' : 'bg-zinc-700 text-zinc-200'}">
-                                ${relay.enabled ? 'On' : 'Off'}
-                            </button>
-                            <button onclick="deleteRelay(${relay.id})" class="w-8 h-8 rounded-full bg-zinc-700 hover:bg-red-500 text-zinc-200 hover:text-white">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
+                            <button onclick="toggleRelay(${relay.id}, ${!relay.enabled})" class="px-3 py-1 rounded-full text-[11px] font-semibold ${relay.enabled ? 'bg-emerald-500 text-white' : 'bg-zinc-700 text-zinc-200'}">${relay.enabled ? 'On' : 'Off'}</button>
+                            <button onclick="deleteRelay(${relay.id})" class="w-8 h-8 rounded-full bg-zinc-700 hover:bg-red-500 text-zinc-200 hover:text-white"><i class="fa-solid fa-trash"></i></button>
                         </div>
                     </div>
                     <div class="mt-3 flex items-end justify-between gap-3">
                         ${errorBlock}
                         <div class="text-zinc-400 text-[10px] shrink-0">${escapeHtml(relay.last_synced || 'never')}</div>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
 
         async function fetchNpubs() {
             const response = await fetch('/api/npubs');
             npubsCache = await response.json();
-
-            const container = document.getElementById('npubs-list');
-            container.innerHTML = npubsCache.map(renderNpubCard).join('');
+            document.getElementById('npubs-list').innerHTML = npubsCache.map(renderNpubCard).join('');
+            updateSelectionSummary();
         }
 
         function renderNpubCard(npub) {
             const displayNpub = truncate(npub.npub, 28);
-            const isSelected = npub.id === selectedNpubId ? 'npub-selected' : '';
-
+            const isSelected = selectedNpubIds.has(npub.id) ? 'npub-selected' : '';
             return `
-                <div onclick="selectNpub(${npub.id})" class="bg-zinc-800 rounded-2xl px-4 py-3 text-xs cursor-pointer ${isSelected}">
+                <div onclick="toggleNpubSelection(${npub.id})" class="bg-zinc-800 rounded-2xl px-4 py-3 text-xs cursor-pointer ${isSelected}">
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                             <div class="font-medium">${escapeHtml(npub.label || 'No label')}</div>
                             <div class="text-zinc-400 font-mono">${escapeHtml(displayNpub)}</div>
                         </div>
-                        <button onclick="event.stopPropagation(); deleteNpub(${npub.id})" class="w-8 h-8 rounded-full bg-zinc-700 hover:bg-red-500 text-zinc-200 hover:text-white shrink-0">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
+                        <button onclick="event.stopPropagation(); deleteNpub(${npub.id})" class="w-8 h-8 rounded-full bg-zinc-700 hover:bg-red-500 text-zinc-200 hover:text-white shrink-0"><i class="fa-solid fa-trash"></i></button>
                     </div>
                     <div class="mt-3 flex items-end justify-between gap-3">
                         <div class="text-emerald-400">${npub.notes_stored} stored notes</div>
                         <div class="text-zinc-400 text-[10px]">${escapeHtml(npub.last_synced || 'never')}</div>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
 
-        async function selectNpub(id) {
-            selectedNpubId = id;
-            const npub = npubsCache.find(item => item.id === id);
+        function updateSelectionSummary() {
+            document.getElementById('selected-npub-name').textContent = selectedSummaryText();
+        }
 
-            document.getElementById('selected-npub-name').textContent =
-                npub?.label || truncate(npub?.npub || '', 16);
+        async function toggleNpubSelection(id) {
+            if (selectedNpubIds.has(id)) selectedNpubIds.delete(id);
+            else selectedNpubIds.add(id);
+            updateSelectionSummary();
+            await fetchNpubs();
+            await fetchEvents(true);
+        }
 
+        async function clearSelectedNpubs() {
+            selectedNpubIds.clear();
+            updateSelectionSummary();
             await fetchNpubs();
             await fetchEvents(true);
         }
@@ -339,71 +305,62 @@
                         <div class="text-emerald-400 text-xs">${escapeHtml(event.created_at)}</div>
                         <div class="text-zinc-500 text-[11px]">${escapeHtml(event.kind_name)}</div>
                     </div>
+                    <div class="text-[11px] text-purple-300 mb-2">${escapeHtml(event.label || event.npub)}</div>
                     <div class="leading-relaxed whitespace-pre-wrap break-words">${escapeHtml(event.preview)}</div>
-                </div>
-            `).join('');
-
+                </div>`).join('');
             container.innerHTML = append ? container.innerHTML + html : html;
         }
 
         async function fetchEvents(reset = false) {
-            if (!selectedNpubId || notesState.loading) return;
+            if (notesState.loading) return;
             notesState.loading = true;
-
             if (reset) {
                 notesState.offset = 0;
                 document.getElementById('notes-list').innerHTML = '';
             }
-
-            const response = await fetch(`/api/npubs/${selectedNpubId}/events?limit=${notesState.limit}&offset=${notesState.offset}`);
+            const ids = selectedIdsArray();
+            const query = new URLSearchParams({
+                limit: String(notesState.limit),
+                offset: String(notesState.offset),
+            });
+            if (ids.length) query.set('npub_ids', ids.join(','));
+            const response = await fetch(`/api/events?${query.toString()}`);
             const payload = await response.json();
-
             const noMsg = document.getElementById('no-events-msg');
             const loadMore = document.getElementById('load-more-btn');
             const meta = document.getElementById('notes-meta');
-
             if (!payload.items.length && notesState.offset === 0) {
                 noMsg.classList.remove('hidden');
+                noMsg.textContent = ids.length
+                    ? 'No stored notes found for the selected npubs yet.'
+                    : 'No stored notes found yet. Sync to start building your archive.';
                 loadMore.classList.add('hidden');
                 meta.classList.add('hidden');
                 notesState.loading = false;
                 return;
             }
-
             noMsg.classList.add('hidden');
             meta.classList.remove('hidden');
-            meta.textContent = `Showing ${Math.min(payload.offset + payload.items.length, payload.total)} of ${payload.total} stored notes`;
+            meta.textContent = `${selectedSummaryText()} — showing ${Math.min(payload.offset + payload.items.length, payload.total)} of ${payload.total} stored notes`;
             renderEvents(payload.items, notesState.offset > 0);
-
             notesState.total = payload.total;
             notesState.offset = payload.offset + payload.items.length;
             loadMore.classList.toggle('hidden', !payload.has_more);
             notesState.loading = false;
         }
 
-        async function loadMoreEvents() {
-            await fetchEvents(false);
-        }
+        async function loadMoreEvents() { await fetchEvents(false); }
 
         async function addRelay() {
             const url = document.getElementById('new-relay-url').value.trim();
             const name = document.getElementById('new-relay-name').value.trim();
-
-            if (!url) {
-                showStatus('Enter a relay URL first', true);
-                return;
-            }
-
+            if (!url) return showStatus('Enter a relay URL first', true);
             const response = await fetchWithAdminRetry('/api/relays', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, name: name || null })
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, name: name || null })
             }, 'Could not add relay');
-
             if (!response) return;
             const data = await response.json();
             showStatus(data.message, !response.ok || !data.success);
-
             if (data.success) {
                 document.getElementById('new-relay-url').value = '';
                 document.getElementById('new-relay-name').value = '';
@@ -414,181 +371,113 @@
         async function addNpub() {
             const npub = document.getElementById('new-npub').value.trim();
             const label = document.getElementById('new-label').value.trim();
-
-            if (!npub) {
-                showStatus('Enter an npub first', true);
-                return;
-            }
-
+            if (!npub) return showStatus('Enter an npub first', true);
             const response = await fetchWithAdminRetry('/api/npubs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ npub, label: label || null })
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ npub, label: label || null })
             }, 'Could not add npub');
-
             if (!response) return;
             const data = await response.json();
             showStatus(data.message, !response.ok || !data.success);
-
             if (data.success) {
                 document.getElementById('new-npub').value = '';
                 document.getElementById('new-label').value = '';
                 await fetchNpubs();
+                await fetchEvents(true);
             }
         }
 
         async function toggleRelay(id, enabled) {
             const response = await fetchWithAdminRetry(`/api/relays/${id}/toggle`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled })
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled })
             }, 'Could not update relay');
-
             if (!response) return;
             const data = await response.json();
             showStatus(data.message, !response.ok || !data.success);
-
-            if (data.success) {
-                await fetchRelays();
-            }
+            if (data.success) await fetchRelays();
         }
 
         async function deleteRelay(id) {
-            if (!confirm('Delete this relay? Stored notes will remain.')) {
-                return;
-            }
-
+            if (!confirm('Delete this relay? Stored notes will remain.')) return;
             const response = await fetchWithAdminRetry(`/api/relays/${id}`, { method: 'DELETE' }, 'Could not delete relay');
             if (!response) return;
             const data = await response.json();
             showStatus(data.message, !response.ok || !data.success);
-
-            if (data.success) {
-                await fetchRelays();
-            }
+            if (data.success) await fetchRelays();
         }
 
         async function deleteNpub(id) {
-            if (!confirm('Delete this monitored npub? Stored notes will remain in the archive.')) {
-                return;
-            }
-
+            if (!confirm('Delete this monitored npub? Stored notes will remain in the archive.')) return;
             const response = await fetchWithAdminRetry(`/api/npubs/${id}`, { method: 'DELETE' }, 'Could not delete npub');
             if (!response) return;
             const data = await response.json();
             showStatus(data.message, !response.ok || !data.success);
-
             if (data.success) {
-                if (selectedNpubId === id) {
-                    selectedNpubId = null;
-                    document.getElementById('selected-npub-name').textContent = '';
-                    document.getElementById('notes-list').innerHTML = '';
-                    document.getElementById('no-events-msg').classList.remove('hidden');
-                    document.getElementById('load-more-btn').classList.add('hidden');
-                    document.getElementById('notes-meta').classList.add('hidden');
-                }
+                selectedNpubIds.delete(id);
                 await fetchNpubs();
+                await fetchEvents(true);
             }
         }
 
         async function syncNow() {
             const mode = document.getElementById('sync-mode').value;
             const deepDays = parseInt(document.getElementById('deep-days').value || '30', 10);
-            const selectedOnly = document.getElementById('selected-only-toggle').checked;
+            const selectedIds = selectedIdsArray();
             const payload = {
                 mode,
                 deep_days: Number.isFinite(deepDays) ? deepDays : 30,
-                npub_id: selectedOnly ? selectedNpubId : null,
+                npub_ids: selectedIds,
             };
-
-            if (selectedOnly && !selectedNpubId) {
-                showStatus('Select an npub first or disable selected-npub-only sync', true);
-                return;
-            }
-
             const response = await fetchWithAdminRetry('/api/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
             }, 'Could not start sync');
-
             if (!response) return;
             const data = await response.json();
             showStatus(data.message, !response.ok || !data.success);
-
             setTimeout(fetchRelays, 2000);
             setTimeout(fetchNpubs, 2000);
-            if (selectedNpubId) {
-                setTimeout(() => fetchEvents(true), 3000);
-            }
+            setTimeout(() => fetchEvents(true), 3000);
         }
 
         async function backup() {
             const response = await fetchWithAdminRetry('/api/backup', {}, 'Backup failed');
             if (!response) return;
-            if (!response.ok) {
-                showStatus(await extractErrorMessage(response, 'Backup failed'), true);
-                return;
-            }
-
+            if (!response.ok) return showStatus(await extractErrorMessage(response, 'Backup failed'), true);
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
             const anchor = document.createElement('a');
-            anchor.href = url;
-            anchor.download = 'nostr-dashboard-backup.ndjson';
-            anchor.click();
+            anchor.href = url; anchor.download = 'nostr-dashboard-backup.ndjson'; anchor.click();
             URL.revokeObjectURL(url);
             showStatus('Backup downloaded successfully');
         }
 
-        function restore() {
-            document.getElementById('restore-file').click();
-        }
+        function restore() { document.getElementById('restore-file').click(); }
 
         async function handleRestoreFile(event) {
             const file = event.target.files[0];
             if (!file) return;
-
             const text = await file.text();
             const response = await fetchWithAdminRetry('/api/restore', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ndjson: text })
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ndjson: text })
             }, 'Restore failed');
-
-            if (!response) {
-                event.target.value = '';
-                return;
-            }
-
+            if (!response) { event.target.value = ''; return; }
             const data = await response.json();
             showStatus(data.message, !response.ok || !data.success);
-
             if (data.success) {
                 await fetchRelays();
                 await fetchNpubs();
-                if (selectedNpubId) {
-                    await fetchEvents(true);
-                }
+                await fetchEvents(true);
             }
-
             event.target.value = '';
         }
 
         async function downloadLogs() {
             const response = await fetchWithAdminRetry('/api/logs', {}, 'Could not download logs');
             if (!response) return;
-            if (!response.ok) {
-                showStatus(await extractErrorMessage(response, 'Could not download logs'), true);
-                return;
-            }
-
+            if (!response.ok) return showStatus(await extractErrorMessage(response, 'Could not download logs'), true);
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
             const anchor = document.createElement('a');
-            anchor.href = url;
-            anchor.download = 'dashboard.log';
-            anchor.click();
+            anchor.href = url; anchor.download = 'dashboard.log'; anchor.click();
             URL.revokeObjectURL(url);
             showStatus('Logs downloaded');
         }
@@ -604,7 +493,8 @@
             await fetchRelays();
             await fetchNpubs();
             await fetchSettings();
-            console.log('%c✅ NRD v1.0.5 feature release loaded', 'color:#10b981;font-weight:bold;');
+            await fetchEvents(true);
+            console.log('%c✅ NRD v1.0.5 polished bundle loaded', 'color:#10b981;font-weight:bold;');
         };
     </script>
 </body>
