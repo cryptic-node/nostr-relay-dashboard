@@ -110,6 +110,4 @@ Huge thanks to Grok for idea generation and feature brainstorming, and to ChatGP
 
 ## Screenshot
 
-## Screenshot
-
 ![Nostr Relay Dashboard v1.0.5](./NRDv1.0.5.png)
