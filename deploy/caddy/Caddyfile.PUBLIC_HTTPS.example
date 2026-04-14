@@ -1,0 +1,35 @@
+# Public HTTPS Caddy example for NRD
+# ----------------------------------
+# Purpose:
+#   - Expose NRD publicly with automatic HTTPS.
+#   - Use only if you intentionally want internet access to the dashboard.
+#
+# Replace these before use:
+#   - nrd.example.com -> your real public domain
+#   - your@email.com  -> your real email for ACME notices
+#
+# Requirements:
+#   - DNS A/AAAA record for nrd.example.com must point to your droplet.
+#   - Ports 80 and 443 must be open to the internet.
+#   - Strongly consider setting NRD_ADMIN_TOKEN before using a public endpoint.
+#
+# Browser URL:
+#   https://nrd.example.com
+#
+# Typical NRD runtime for this mode:
+#   HOST=127.0.0.1 PORT=8080 cargo run
+{
+    email your@email.com
+}
+
+nrd.example.com {
+    encode gzip zstd
+    reverse_proxy 127.0.0.1:8080
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+        X-Frame-Options SAMEORIGIN
+    }
+}
