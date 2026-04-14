@@ -164,6 +164,67 @@ const MAX_EVENTS_PAGE_SIZE: i64 = 100;
 const DEFAULT_DEEP_DAYS: i64 = 30;
 const DEFAULT_RECENT_BOOTSTRAP_DAYS: i64 = 7;
 
+fn configured_admin_token() -> Option<String> {
+    std::env::var("NRD_ADMIN_TOKEN")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn request_admin_token(headers: &HeaderMap) -> Option<String> {
+    if let Some(value) = headers
+        .get("x-admin-token")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Some(value.to_string());
+    }
+
+    headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string())
+}
+
+fn json_response(status: StatusCode, success: bool, message: impl Into<String>) -> Response {
+    (status, Json(ApiResponse {
+        success,
+        message: message.into(),
+    }))
+        .into_response()
+}
+
+fn is_valid_relay_url(url: &str) -> bool {
+    url.starts_with("ws://") || url.starts_with("wss://")
+}
+
+fn format_line_numbers(lines: &[usize]) -> String {
+    lines
+        .iter()
+        .map(|line| line.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn require_admin(headers: &HeaderMap) -> Option<Response> {
+    let Some(expected_token) = configured_admin_token() else {
+        return None;
+    };
+
+    match request_admin_token(headers) {
+        Some(provided_token) if provided_token == expected_token => None,
+        _ => Some(json_response(
+            StatusCode::UNAUTHORIZED,
+            false,
+            "Admin token required or invalid",
+        )),
+    }
+}
+
 fn log_message(message: &str) {
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let entry = format!("{} | {}\n", timestamp, message);
