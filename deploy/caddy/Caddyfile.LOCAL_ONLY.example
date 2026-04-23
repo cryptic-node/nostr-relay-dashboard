@@ -1,0 +1,32 @@
+# Local-only Caddy example for NRD
+# --------------------------------
+# Purpose:
+#   - Keep NRD reachable only from the droplet itself.
+#   - Good for SSH port-forwarding or very locked-down setups.
+#
+# How it works:
+#   - Caddy listens only on loopback interfaces.
+#   - Requests to http://127.0.0.1 or http://localhost are proxied to NRD on 127.0.0.1:8080.
+#   - Nothing is exposed to the public internet or your Tailnet.
+#
+# Browser URL from the droplet itself:
+#   http://127.0.0.1
+#   http://localhost
+#
+# Typical NRD runtime for this mode:
+#   HOST=127.0.0.1 PORT=8080 cargo run
+{
+    auto_https off
+    # Keep admin on so 'systemctl reload caddy' works.
+    # If you ever set 'admin off', use 'systemctl restart caddy' instead of reload.
+}
+
+http://127.0.0.1 {
+    bind 127.0.0.1
+    reverse_proxy 127.0.0.1:8080
+}
+
+http://localhost {
+    bind 127.0.0.1 ::1
+    reverse_proxy 127.0.0.1:8080
+}
