@@ -341,3 +341,8 @@ Built with 🦀 by [**cryptic-node**](https://github.com/cryptic-node) — part 
 If NERD is useful to you, Lightning tips are welcome.
 
 *Lightning address orchidcheetah29@primal.net and QR is QR.png*
+
+<p align="center">
+  <img src="QR.png" alt="Lightning donation QR code" width="200">
+</p>
+
