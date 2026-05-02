@@ -335,3 +335,9 @@ Huge thanks to **Grok** for idea generation and feature brainstorming, **ChatGPT
 Built with 🦀 by [**cryptic-node**](https://github.com/cryptic-node) — part of the [**Cryptic Forge**](https://github.com/cryptic-node) toolkit.
 
 </div>
+
+## Support development
+
+If NERD is useful to you, Lightning tips are welcome.
+
+*Lightning address orchidcheetah29@primal.net and QR is QR.png*
