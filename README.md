@@ -4,7 +4,7 @@
 
 # Nostr Relay Dashboard
 
-**A clean, self-hosted admin and archive layer for Nostr.**
+**A free, clean, self-hosted admin and archive layer for Nostr.**
 Pull notes from any set of upstream relays for any number of npubs, store them locally, and manage the whole thing from a fast dashboard.
 
 [![Version](https://img.shields.io/badge/version-1.0.5-8b5cf6?style=for-the-badge)](https://github.com/cryptic-node/nostr-relay-dashboard/releases)
