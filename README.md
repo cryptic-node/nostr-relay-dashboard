@@ -338,7 +338,7 @@ Built with 🦀 by [**cryptic-node**](https://github.com/cryptic-node) — part 
 
 ## Support development
 
-If NERD is useful to you, Lightning tips are welcome.
+If NRD is useful to you, Lightning tips are welcome.
 
 *Lightning address orchidcheetah29@primal.net and QR is QR.png*
 
