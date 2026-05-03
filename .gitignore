@@ -1,0 +1,23 @@
+# Rust build artifacts
+/target
+**/*.rs.bk
+# NOTE: Cargo.lock is intentionally NOT ignored — this is a binary, not a
+# library, so reproducible builds want the lockfile committed.
+
+# Runtime data — never commit a host DB
+/data
+*.db
+*.db-wal
+*.db-shm
+/backups
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp

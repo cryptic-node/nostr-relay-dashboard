@@ -1,0 +1,45 @@
+# NRD — generic single-host deployment.
+#
+# This is the cloner-friendly compose file. It uses a Docker named volume so
+# anyone can `docker compose up -d` with no host-path setup. For homelab or
+# production deployments where you want the SQLite DB visible on the host
+# filesystem (recommended), swap `relay-data:/app/data` for a bind mount,
+# e.g. `./data:/app/data` after `mkdir -p ./data && chown -R 65532:65532 ./data`.
+#
+# Bring up:    docker compose up -d --build
+# Logs:        docker compose logs -f
+# Tear down:   docker compose down
+
+services:
+  nrd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nrd:latest
+    container_name: nrd
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    volumes:
+      - relay-data:/app/data
+
+    environment:
+      DATABASE_PATH: /app/data/dashboard.db
+      BACKUP_DIR: /app/data/backups
+      HOST: 0.0.0.0
+      PORT: 8080
+      RUST_LOG: nostr_relay_dashboard=info
+      # Strongly recommended. Generate with `openssl rand -hex 32` and set in .env.
+      NRD_ADMIN_TOKEN: ${NRD_ADMIN_TOKEN:-}
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  relay-data:
+    driver: local

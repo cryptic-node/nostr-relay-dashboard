@@ -1,0 +1,29 @@
+# Caddy site for the production NRD instance.
+#
+# Replace `nrd.your-tailnet.ts.net` with your own hostname. Whatever you pick,
+# this is the hostname that mobile clients (e.g. Primal on iOS) will hit, so
+# keep it stable across redeploys — the systemd → container cutover documented
+# in docs/MIGRATION_TO_DOCKER.md is designed so this hostname keeps routing to
+# 127.0.0.1:8080 throughout.
+
+nrd.your-tailnet.ts.net {
+    encode zstd gzip
+
+    reverse_proxy 127.0.0.1:8080 {
+        health_uri /
+        health_interval 30s
+        health_timeout 5s
+
+        # Serve 503 during brief upstream outages instead of connection-refused.
+        fail_duration 10s
+        max_fails 3
+    }
+}
+
+# Optional: a dedicated relay backend on a separate hostname (planned for
+# v1.0.6 — pair NRD with nostr-rs-relay so archived events are reachable
+# through standard Nostr clients).
+#
+# relay.your-tailnet.ts.net {
+#     reverse_proxy 127.0.0.1:8082
+# }

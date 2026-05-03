@@ -1,0 +1,21 @@
+# Example HTTPS front-end for NRD.
+#
+# Replace the hostname with your own (Tailscale MagicDNS, Caddy's automatic
+# Let's Encrypt, etc.). NRD is the admin/archive layer, not a relay endpoint
+# by itself — keep it bound to 127.0.0.1 (the compose default) and let Caddy
+# handle TLS.
+
+nrd.your-tailnet.ts.net {
+    encode zstd gzip
+
+    reverse_proxy 127.0.0.1:8080 {
+        health_uri /
+        health_interval 30s
+        health_timeout 5s
+
+        # If the upstream is briefly down (e.g. during a redeploy), serve a 503
+        # rather than connection-refused so clients retry more cleanly.
+        fail_duration 10s
+        max_fails 3
+    }
+}

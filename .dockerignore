@@ -1,0 +1,35 @@
+# Build artifacts — must not leak into image
+target/
+**/*.rs.bk
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Runtime data — never ship a host DB into the image
+data/
+*.db
+*.db-wal
+*.db-shm
+backups/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Docker compose files — not needed inside the image
+docker-compose*.yml
+
+# Docs and deploy artifacts not used at build time
+docs/
+deploy/
+README.md
+RELEASE_MANIFEST.txt

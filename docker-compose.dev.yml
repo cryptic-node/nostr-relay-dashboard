@@ -1,0 +1,72 @@
+# NRD — dev / experimental tier compose file.
+#
+# This is the deployment intended for the box where you iterate, test
+# upgrades, and break things safely. Differences from the prod compose:
+#
+#   1. Bind mount under /srv/nrd-dev/data (separate from prod data).
+#   2. Container name `nrd-dev` to avoid confusion with the prod stack.
+#   3. NRD_ADMIN_TOKEN not required (assumes private network only).
+#   4. Looser CPU/memory limits — this is the experiment box.
+#   5. RUST_LOG=debug for verbose tracing while iterating.
+#
+# Bring up:    docker compose -f docker-compose.dev.yml up -d --build
+# Logs:        docker compose -f docker-compose.dev.yml logs -f
+# Tear down:   docker compose -f docker-compose.dev.yml down
+#
+# Host prep (one-time, run as your normal user with sudo):
+#   sudo mkdir -p /srv/nrd-dev/data/backups
+#   sudo chown -R 65532:65532 /srv/nrd-dev/data
+#   # 65532 is the distroless `nonroot` uid:gid the container runs as.
+
+services:
+  nrd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nrd:dev
+    container_name: nrd-dev
+    restart: unless-stopped
+
+    # Tailnet/LAN-only access via Caddy on the host. If you want to hit the
+    # container directly from another LAN host while testing, change to
+    # "0.0.0.0:8080:8080".
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    volumes:
+      # Bind mount — DB and backups visible from the host for `sqlite3`, `tar`,
+      # rsync, etc. This is the whole point of the homelab philosophy.
+      - /srv/nrd-dev/data:/app/data
+
+    environment:
+      DATABASE_PATH: /app/data/dashboard.db
+      BACKUP_DIR: /app/data/backups
+      HOST: 0.0.0.0
+      PORT: 8080
+      RUST_LOG: nostr_relay_dashboard=debug
+      # Optional — uncomment in .env to enable admin token in dev too.
+      NRD_ADMIN_TOKEN: ${NRD_ADMIN_TOKEN:-}
+
+    # NOTE: distroless has no shell, so a `CMD-SHELL` healthcheck won't work.
+    # We rely on Docker's default `running` state as the liveness signal and
+    # let the upstream reverse proxy (Caddy) do an HTTP healthcheck.
+    #
+    # If you want an in-container HTTP healthcheck, switch the runtime base
+    # in the Dockerfile to `gcr.io/distroless/cc-debian12:debug-nonroot`
+    # (which bundles busybox). That's a debug image, not production-clean.
+
+    # Resource limits — looser than prod, this is the experiment box.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 512M
+        reservations:
+          memory: 64M
+
+    # Bounded log files so a runaway debug build doesn't fill the disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

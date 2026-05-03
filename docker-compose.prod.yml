@@ -1,0 +1,66 @@
+# NRD — production tier compose file.
+#
+# This is the deployment intended for the box that serves your stable
+# instance (e.g. behind Caddy on a Tailscale hostname). It's stricter than
+# the generic docker-compose.yml in three ways:
+#
+#   1. Bind mount under /srv/nrd-prod/data — the SQLite DB and backups are
+#      visible on the host filesystem (recommended for homelab ops).
+#   2. NRD_ADMIN_TOKEN is REQUIRED — compose refuses to start without it.
+#   3. Tighter CPU/memory caps and INFO-level logging (no debug noise).
+#
+# Bring up:    docker compose --env-file .env -f docker-compose.prod.yml up -d --build
+# Logs:        docker compose -f docker-compose.prod.yml logs -f
+# Tear down:   docker compose -f docker-compose.prod.yml down
+#
+# Host prep (one-time):
+#   sudo mkdir -p /srv/nrd-prod/data/backups
+#   sudo chown -R 65532:65532 /srv/nrd-prod/data
+#   # 65532 is the distroless `nonroot` uid:gid the container runs as.
+#
+# Migration from a bare-metal systemd install: see docs/MIGRATION_TO_DOCKER.md
+#
+# When you have a private container registry, you can replace the `build:`
+# block with `image: <registry>/nrd:1.0.5` so the prod box pulls a pinned
+# image instead of compiling Rust on every deploy.
+
+services:
+  nrd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nrd:1.0.5
+    container_name: nrd
+    restart: unless-stopped
+
+    # Bound to localhost — Caddy on the host fronts this on the tailnet/LAN.
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    volumes:
+      - /srv/nrd-prod/data:/app/data
+
+    environment:
+      DATABASE_PATH: /app/data/dashboard.db
+      BACKUP_DIR: /app/data/backups
+      HOST: 0.0.0.0
+      PORT: 8080
+      RUST_LOG: nostr_relay_dashboard=info
+      # REQUIRED. Compose substitution with `:?` makes the stack refuse to start
+      # if NRD_ADMIN_TOKEN isn't set in the environment or .env file. This is
+      # the safety rail — production must have admin auth.
+      NRD_ADMIN_TOKEN: ${NRD_ADMIN_TOKEN:?NRD_ADMIN_TOKEN must be set in .env}
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 384M
+        reservations:
+          memory: 64M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"

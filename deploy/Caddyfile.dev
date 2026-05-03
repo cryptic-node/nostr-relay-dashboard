@@ -1,0 +1,32 @@
+# Caddy site for the dev NRD instance.
+#
+# Tailscale gotcha: certs are issued for the device's actual MagicDNS
+# hostname. If your dev box is e.g. `dev.your-tailnet.ts.net`, you cannot
+# issue a separate cert for `nrd-dev.your-tailnet.ts.net` unless you set
+# that up as an alias or use Tailscale Serve.
+#
+# Two working patterns:
+#
+#   1. Path-based on the device hostname (this file uses this):
+#        dev.your-tailnet.ts.net { handle_path /nrd/* { reverse_proxy 127.0.0.1:8080 } }
+#      Simple. Works today. NRD doesn't care about the path prefix.
+#
+#   2. Tailscale Serve to expose 127.0.0.1:8080 over HTTPS on the device
+#      hostname directly. See https://tailscale.com/kb/1242/tailscale-serve
+#
+# Pattern (1) is convenient when you want to host several services on one
+# dev box, each at its own path prefix.
+
+dev.your-tailnet.ts.net {
+    encode zstd gzip
+
+    handle_path /nrd/* {
+        reverse_proxy 127.0.0.1:8080 {
+            health_uri /
+            health_interval 30s
+            health_timeout 5s
+        }
+    }
+
+    # Add other dev services here as they come online (e.g. /relay/* on 8082).
+}
